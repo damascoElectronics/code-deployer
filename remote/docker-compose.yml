@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  container2:
+    build: ./container2
+    container_name: log_collector
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - LOG_DIR=/logs
+    volumes:
+      # Mount the directory where third-party drops log files
+      - /path/to/log/directory:/logs:ro
+      - ./data:/data
+    networks:
+      - log_network
+
+networks:
+  log_network:
+    driver: bridge
