@@ -29,8 +29,6 @@ build-log-processor:
     - docker build -t log_processor:latest .
     - docker images | grep log_processor
     - echo "Log Processor built successfully!"
-  tags:
-    - shell
   only:
     - main
 
@@ -42,8 +40,6 @@ build-log-collector:
     - cd remote/log_collector
     - docker build -t log_collector:latest .
     - echo "Log Collector builds successfully!"
-  tags:
-    - shell
   only:
     - main
 
@@ -56,8 +52,6 @@ test-shell-runner:
     - echo "Directory':' $(pwd)"
     - echo "Docker version':' $(docker --version)"
     - echo "Shell runner is working!"
-  tags:
-    - shell
   when: manual
 
 # Deploy log_processor locally on VM1 using shell runner
@@ -72,8 +66,6 @@ deploy-local:
     - docker run -d --name log_processor --restart unless-stopped log_processor:latest
     - docker ps | grep log_processor
     - echo "Log Processor deployed on VM1!"
-  tags:
-    - shell
   only:
     - main
   when: manual
@@ -104,22 +96,17 @@ debug-ssh-vars:
       fi
   when: manual
 
-# Test SSH connection to remote VM2 (using shell runner with VPN access)
+# Test SSH connection to remote VM2
 test-remote-connection:
   stage: test
   script:
     - echo "Testing connection to VM2 at $VM2_IP as user $SSH_USER..."
-    - |
-      # Use existing SSH key from host
-      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
-  tags:
-    - shell
-    - vpn
+    - ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
 
-# Deploy log_collector to remote VM2 (using shell runner with VPN access)
+# Deploy log_collector to remote VM2
 deploy-remote:
   stage: deploy
   script:
@@ -140,9 +127,6 @@ deploy-remote:
         rm -rf /tmp/log_collector
         echo "Log Collector deployed on VM2!"
       EOF
-  tags:
-    - shell
-    - vpn
   only:
     - main
   when: manual
@@ -181,9 +165,6 @@ deploy-all:
       echo ""
       echo "VM2 containers:"
       ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "docker ps | grep log_collector" || echo "log_collector not running!"
-  tags:
-    - shell
-    - vpn
   only:
     - main
   when: manual
