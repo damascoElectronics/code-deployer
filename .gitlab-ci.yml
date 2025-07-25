@@ -122,20 +122,18 @@ build_log_processor:
     - echo 'Building Docker image for log_processor...'
     - sudo docker build -t log_processor:latest . || docker build -t log_processor:latest .
     
-    # Save the image as tar file for transfer
-    - echo 'Exporting image to tar file...'
-    - sudo docker save log_processor:latest -o log_processor_image.tar || docker save log_processor:latest -o log_processor_image.tar
+    # Verify the image was built
+    - sudo docker images | grep log_processor || docker images | grep log_processor
+    - echo '✅ log_processor container built successfully'
     
-    # Verify the tar file was created
-    - ls -lh log_processor_image.tar
-    - echo '✅ log_processor container built and exported'
-    
-    # Move tar file to build artifacts location
-    - mv log_processor_image.tar ../../
+    # Optional - save image info for later use
+    - sudo docker inspect log_processor:latest --format='{{.Id}}' > ../log_processor_image_id.txt || docker inspect log_processor:latest --format='{{.Id}}' > ../log_processor_image_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../log_processor_image_id.txt
     
   artifacts:
     paths:
-      - log_processor_image.tar
+      - log_processor_image_id.txt
     expire_in: 1 hour
   only:
     - main
@@ -152,20 +150,18 @@ build_log_collector:
     - echo 'Building Docker image for log_collector...'
     - sudo docker build -t log_collector:latest . || docker build -t log_collector:latest .
     
-    # Save the image as tar file for transfer
-    - echo 'Exporting image to tar file...'
-    - sudo docker save log_collector:latest -o log_collector_image.tar || docker save log_collector:latest -o log_collector_image.tar
+    # Verify the image was built
+    - sudo docker images | grep log_collector || docker images | grep log_collector
+    - echo '✅ log_collector container built successfully'
     
-    # Verify the tar file was created
-    - ls -lh log_collector_image.tar
-    - echo '✅ log_collector container built and exported'
-    
-    # Move tar file to build artifacts location
-    - mv log_collector_image.tar ../../
+    # Optional - save image info for later use
+    - sudo docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt || docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../log_collector_image_id.txt
     
   artifacts:
     paths:
-      - log_collector_image.tar
+      - log_collector_image_id.txt
     expire_in: 1 hour
   only:
     - main
