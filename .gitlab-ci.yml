@@ -1,0 +1,108 @@
+# .gitlab-ci.yml
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+# Test the Python scripts
+test-python:
+  stage: test
+  image: python:3.9-slim
+  script:
+    - echo "Testing Python scripts..."
+    - python -m py_compile vm1/container1/app.py
+    - python -m py_compile vm2/container2/app.py
+    - echo "✓ Python syntax check passed!"
+
+# Build Container 1 for VM1
+build-container1:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "Building Container 1..."
+    - cd vm1/container1
+    - docker build -t container1:latest .
+    - docker images | grep container1
+    - echo "✓ Container 1 built successfully!"
+  only:
+    - main
+
+# Build Container 2 for VM2
+build-container2:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "Building Container 2..."
+    - cd vm2/container2
+    - docker build -t container2:latest .
+    - docker save container2:latest -o container2.tar
+    - echo "✓ Container 2 built and saved!"
+  artifacts:
+    paths:
+      - vm2/container2/container2.tar
+    expire_in: 1 hour
+  only:
+    - main
+
+# Deploy Container 1 locally on VM1
+deploy-vm1:
+  stage: deploy
+  image: docker:latest
+  script:
+    - echo "Deploying Container 1 on VM1..."
+    - cd vm1
+    - docker stop log_processor || true
+    - docker rm log_processor || true
+    - docker run -d --name log_processor --restart unless-stopped container1:latest
+    - docker ps | grep log_processor
+    - echo "✓ Container 1 deployed on VM1!"
+  only:
+    - main
+  when: manual
+
+# Test SSH connection to VM2
+test-vm2-connection:
+  stage: test
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+  script:
+    - echo "Testing connection to VM2..."
+    - ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2!' && docker --version"
+  when: manual
+  only:
+    - main
+
+# Deploy Container 2 to VM2
+deploy-vm2:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - build-container2
+  before_script:
+    - apk add --no-cache openssh-client
+  script:
+    - echo "Deploying Container 2 to VM2..."
+    - scp -o StrictHostKeyChecking=no vm2/container2/container2.tar $SSH_USER@$VM2_IP:/tmp/
+    - |
+      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP << 'EOF'
+        echo "Loading Docker image..."
+        docker load -i /tmp/container2.tar
+        docker stop log_collector || true
+        docker rm log_collector || true
+        docker run -d --name log_collector --restart unless-stopped container2:latest
+        docker ps | grep log_collector
+        rm /tmp/container2.tar
+        echo "✓ Container 2 deployed on VM2!"
+      EOF
+  only:
+    - main
+  when: manual
