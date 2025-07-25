@@ -3,45 +3,55 @@ stages:
   - build
 
 variables:
-  PYTHON_VERSION: "3.9"
+  PYTHON_VERSION: '3.9'
 
 # Test stage - verify Python files can be compiled and basic syntax check
 test_python_syntax:
   stage: test
   script:
-    - echo "Starting Python syntax and compilation tests..."
-    - echo "Python version:"
+    - echo 'Starting Python syntax and compilation tests...'
+    - echo 'Python version'
     - python3 --version
-    - echo "Pip version:"
+    - echo 'Pip version'
     - pip3 --version
     
     # Test Container 1 (log_processor)
-    - echo "Testing log_processor Python syntax..."
+    - echo 'Testing log_processor Python syntax...'
     - python3 -m py_compile local/log_processor/app.py
-    - echo "✅ log_processor/app.py syntax OK"
+    - echo '✅ log_processor/app.py syntax OK'
     
     # Test Container 2 (log_collector)  
-    - echo "Testing log_collector Python syntax..."
+    - echo 'Testing log_collector Python syntax...'
     - python3 -m py_compile remote/log_collector/app.py
-    - echo "✅ log_collector/app.py syntax OK"
+    - echo '✅ log_collector/app.py syntax OK'
     
-    # Install dependencies and test imports
-    - echo "Installing dependencies for log_processor..."
+    # Create virtual environment for testing dependencies
+    - echo 'Creating virtual environment...'
+    - python3 -m venv test_venv
+    - source test_venv/bin/activate
+    
+    # Install dependencies and test imports for log_processor
+    - echo 'Installing dependencies for log_processor...'
     - cd local/log_processor
-    - pip3 install -r requirements.txt --user
+    - pip install -r requirements.txt
     - python3 -c "import time, logging, datetime; print('✅ log_processor imports OK')"
     - cd ../../
     
-    - echo "Installing dependencies for log_collector..."
+    # Install dependencies and test imports for log_collector
+    - echo 'Installing dependencies for log_collector...'
     - cd remote/log_collector  
-    - pip3 install -r requirements.txt --user
+    - pip install -r requirements.txt
     - python3 -c "import time, logging, datetime, os; print('✅ log_collector imports OK')"
     - cd ../../
     
     # Test if scripts can run for a few seconds
-    - echo "Testing if scripts can execute..."
-    - timeout 5 python3 local/log_processor/app.py || echo "✅ log_processor runs (timeout expected)"
-    - timeout 5 python3 remote/log_collector/app.py || echo "✅ log_collector runs (timeout expected)"
+    - echo 'Testing if scripts can execute...'
+    - timeout 5 python3 local/log_processor/app.py || echo '✅ log_processor runs (timeout expected)'
+    - timeout 5 python3 remote/log_collector/app.py || echo '✅ log_collector runs (timeout expected)'
+    
+    # Cleanup
+    - deactivate || true
+    - rm -rf test_venv
     
   only:
     - main
@@ -52,23 +62,24 @@ test_python_syntax:
 test_docker_build:
   stage: build
   script:
-    - echo "Testing Docker image builds..."
-    - echo "Current directory':' $(pwd)"
-    - echo "Available Docker:"
+    - echo 'Testing Docker image builds...'
+    - echo 'Current directory'
+    - pwd
+    - echo 'Available Docker'
     - docker --version
     
     # Test building log_processor image
-    - echo "Building log_processor Docker image..."
+    - echo 'Building log_processor Docker image...'
     - cd local/log_processor
     - docker build -t log_processor_test:latest .
-    - echo "✅ log_processor Docker build successful"
+    - echo '✅ log_processor Docker build successful'
     - cd ../../
     
     # Test building log_collector image  
-    - echo "Building log_collector Docker image..."
+    - echo 'Building log_collector Docker image...'
     - cd remote/log_collector
     - docker build -t log_collector_test:latest .
-    - echo "✅ log_collector Docker build successful"
+    - echo '✅ log_collector Docker build successful'
     - cd ../../
     
     # Clean up test images
