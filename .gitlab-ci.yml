@@ -113,7 +113,7 @@ test-remote-connection:
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning ssh-keyscan failed"
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning':' ssh-keyscan failed"
   script:
     - echo "Testing connection to VM2 at $VM2_IP as user $SSH_USER..."
     - ssh -v -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
