@@ -16,7 +16,7 @@ test-python:
     - echo "Testing Python scripts..."
     - python -m py_compile local/log_processor/app.py
     - python -m py_compile remote/log_collector/app.py
-    - echo "✓ Python syntax check passed!"
+    - echo "✓ Python syntax check passed"
 
 # Build log_processor for local (VM1)
 build-log-processor:
@@ -29,7 +29,7 @@ build-log-processor:
     - cd local/log_processor
     - docker build -t log_processor:latest .
     - docker images | grep log_processor
-    - echo "✓ Log Processor built successfully!"
+    - echo "✓ Log Processor built successfully"
   only:
     - main
 
@@ -44,7 +44,7 @@ build-log-collector:
     - cd remote/log_collector
     - docker build -t log_collector:latest .
     - docker save log_collector:latest -o log_collector.tar
-    - echo "✓ Log Collector built and saved!"
+    - echo "✓ Log Collector built and saved"
   artifacts:
     paths:
       - remote/log_collector/log_collector.tar
@@ -63,7 +63,7 @@ deploy-local:
     - docker rm log_processor || true
     - docker run -d --name log_processor --restart unless-stopped log_processor:latest
     - docker ps | grep log_processor
-    - echo "✓ Log Processor deployed on VM1!"
+    - echo "✓ Log Processor deployed on VM1"
   only:
     - main
   when: manual
@@ -76,7 +76,7 @@ test-remote-connection:
     - apk add --no-cache openssh-client
   script:
     - echo "Testing connection to remote VM2..."
-    - ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2!' && docker --version"
+    - ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
@@ -101,7 +101,7 @@ deploy-remote:
         docker run -d --name log_collector --restart unless-stopped log_collector:latest
         docker ps | grep log_collector
         rm /tmp/log_collector.tar
-        echo "✓ Log Collector deployed on VM2!"
+        echo "✓ Log Collector deployed on VM2"
       EOF
   only:
     - main
