@@ -67,27 +67,35 @@ test_docker_build:
     - pwd
     - echo 'Available Docker'
     - docker --version
+    - echo 'Current user'
+    - whoami
+    - echo 'Docker groups'
+    - groups
     
-    # Test building log_processor image
+    # Check if user can access docker
+    - echo 'Testing Docker access...'
+    - docker info || echo 'Docker access failed - permission issue'
+    
+    # Try to build with sudo if direct access fails
     - echo 'Building log_processor Docker image...'
     - cd local/log_processor
-    - docker build -t log_processor_test:latest .
+    - sudo docker build -t log_processor_test:latest . || docker build -t log_processor_test:latest .
     - echo '✅ log_processor Docker build successful'
     - cd ../../
     
     # Test building log_collector image  
     - echo 'Building log_collector Docker image...'
     - cd remote/log_collector
-    - docker build -t log_collector_test:latest .
+    - sudo docker build -t log_collector_test:latest . || docker build -t log_collector_test:latest .
     - echo '✅ log_collector Docker build successful'
     - cd ../../
     
     # Clean up test images
-    - docker rmi log_processor_test:latest || true
-    - docker rmi log_collector_test:latest || true
+    - sudo docker rmi log_processor_test:latest || docker rmi log_processor_test:latest || true
+    - sudo docker rmi log_collector_test:latest || docker rmi log_collector_test:latest || true
     
   only:
     - main
     - develop
     - merge_requests
-  allow_failure: true  # Docker might not be available on VM1
+  allow_failure: true  # Docker might have permission issues
