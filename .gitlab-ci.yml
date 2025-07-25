@@ -112,6 +112,16 @@ test-remote-connection:
   only:
     - main
 
+test-shell-runner:
+  stage: test
+  script:
+    - echo "Shell runner is working!"
+    - whoami
+    - pwd
+  tags:
+    - shell
+  when: manual
+
 # Deploy log_collector to remote VM2 (using shell runner with VPN access)
 deploy-remote:
   stage: deploy
