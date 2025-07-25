@@ -1,6 +1,7 @@
 stages:
   - test
   - build
+  - connectivity
 
 variables:
   PYTHON_VERSION: '3.9'
@@ -99,3 +100,43 @@ test_docker_build:
     - develop
     - merge_requests
   allow_failure: true  # Docker might have permission issues
+
+# Connectivity stage - test SSH connection to VM2
+test_ssh_connection:
+  stage: connectivity
+  script:
+    - echo 'Testing SSH connection to VM2...'
+    - echo 'Current user and home directory'
+    - whoami
+    - echo $HOME
+    
+    # Check SSH keys
+    - echo 'Checking SSH keys...'
+    - ls -la ~/.ssh/ || echo 'No .ssh directory found'
+    - ls -la ~/.ssh/id_* 2>/dev/null || echo 'No SSH keys found in standard location'
+    
+    # Test basic connectivity to VM2
+    - echo 'Testing ping to VM2...'
+    - ping -c 3 192.168.0.11 || echo 'Ping failed - VPN or network issue'
+    
+    # Test SSH connection
+    - echo 'Testing SSH connection...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'echo "✅ SSH connection successful from $(hostname) to $(hostname)"' || echo '❌ SSH connection failed'
+    
+    # Test SSH with common troubleshooting
+    - echo 'SSH connection diagnostics...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -v starion@192.168.0.11 'uptime' 2>&1 | head -20 || echo 'Verbose SSH failed'
+    
+    # Test if we can access VM2 file system
+    - echo 'Testing file system access on VM2...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'ls -la /home/starion' || echo 'File system access failed'
+    
+    # Test Docker access on VM2
+    - echo 'Testing Docker on VM2...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker --version' || echo 'Docker not accessible on VM2'
+    
+  only:
+    - main
+    - develop
+    - merge_requests
+  allow_failure: true  # SSH might need configuration
