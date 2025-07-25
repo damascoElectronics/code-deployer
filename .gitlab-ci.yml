@@ -113,13 +113,58 @@ test-remote-connection:
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: ssh-keyscan failed"
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning ssh-keyscan failed"
   script:
     - echo "Testing connection to VM2 at $VM2_IP as user $SSH_USER..."
     - ssh -v -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
+
+# Add this job to your .gitlab-ci.yml for debugging
+
+# Detailed SSH debugging
+debug-ssh-connection:
+  stage: test
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+  script:
+    - echo "=== SSH Debug Information ==="
+    - echo "VM2_IP':' $VM2_IP"
+    - echo "SSH_USER':' $SSH_USER"
+    - echo "SSH_PRIVATE_KEY length':' ${#SSH_PRIVATE_KEY} characters"
+    - |
+      # Check key format
+      echo "=== Checking SSH key format ==="
+      mkdir -p ~/.ssh
+      echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+      chmod 600 ~/.ssh/id_rsa
+      
+      # Check if it's a valid key
+      if head -n 1 ~/.ssh/id_rsa | grep -q "BEGIN"; then
+        echo "✓ Key has proper BEGIN header"
+      else
+        echo "✗ Key missing BEGIN header"
+        echo "First line of key:"
+        head -n 1 ~/.ssh/id_rsa
+      fi
+      
+      # Count lines in key
+      echo "Key has $(wc -l < ~/.ssh/id_rsa) lines"
+      
+    - |
+      echo "=== Testing SSH connection ==="
+      # Try to connect with verbose output
+      ssh -vvv -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Connection successful'" || true
+      
+    - |
+      echo "=== Alternative: Testing with password (if key fails) ==="
+      echo "If the above failed, you might need to:"
+      echo "1. Check if the SSH key is correctly formatted"
+      echo "2. Ensure the public key is in VM2's ~/.ssh/authorized_keys"
+      echo "3. Check VM2's SSH logs: sudo journalctl -u ssh -f"
+  when: manual
 
 # Deploy log_collector to remote VM2
 deploy-remote:
