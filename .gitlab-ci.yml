@@ -7,6 +7,7 @@ stages:
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
 
 # Test the Python scripts
 test-python:
@@ -16,20 +17,23 @@ test-python:
     - echo "Testing Python scripts..."
     - python -m py_compile local/log_processor/app.py
     - python -m py_compile remote/log_collector/app.py
-    - echo "✓ Python syntax check passed"
+    - echo "Python syntax check passed!"
 
 # Build log_processor for local (VM1)
 build-log-processor:
   stage: build
   image: docker:latest
   services:
-    - docker:dind
+    - name: docker:dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - echo "Building Log Processor..."
+    - docker info
     - cd local/log_processor
     - docker build -t log_processor:latest .
     - docker images | grep log_processor
-    - echo "✓ Log Processor built successfully"
+    - echo "Log Processor built successfully!"
   only:
     - main
 
@@ -38,13 +42,16 @@ build-log-collector:
   stage: build
   image: docker:latest
   services:
-    - docker:dind
+    - name: docker:dind
+      alias: docker
+      command: ["--tls=false"]
   script:
     - echo "Building Log Collector..."
+    - docker info
     - cd remote/log_collector
     - docker build -t log_collector:latest .
     - docker save log_collector:latest -o log_collector.tar
-    - echo "✓ Log Collector built and saved"
+    - echo "Log Collector built and saved!"
   artifacts:
     paths:
       - remote/log_collector/log_collector.tar
@@ -52,18 +59,32 @@ build-log-collector:
   only:
     - main
 
+# Alternative: Build using mounted docker socket (if dind doesn't work)
+build-log-processor-alt:
+  stage: build
+  image: docker:latest
+  script:
+    - echo "Building Log Processor (using host Docker)..."
+    - cd local/log_processor
+    - docker build -t log_processor:latest .
+    - echo "Log Processor built!"
+  tags:
+    - shell
+  when: manual
+
 # Deploy log_processor locally on VM1
 deploy-local:
   stage: deploy
   image: docker:latest
   script:
     - echo "Deploying Log Processor on local VM1..."
-    - cd local
     - docker stop log_processor || true
     - docker rm log_processor || true
     - docker run -d --name log_processor --restart unless-stopped log_processor:latest
     - docker ps | grep log_processor
-    - echo "✓ Log Processor deployed on VM1"
+    - echo "Log Processor deployed on VM1!"
+  tags:
+    - shell
   only:
     - main
   when: manual
@@ -74,9 +95,13 @@ test-remote-connection:
   image: alpine:latest
   before_script:
     - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts
   script:
     - echo "Testing connection to remote VM2..."
-    - ssh $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2' && docker --version"
+    - ssh -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
@@ -89,11 +114,15 @@ deploy-remote:
     - build-log-collector
   before_script:
     - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts
   script:
     - echo "Deploying Log Collector to remote VM2..."
-    - scp -o StrictHostKeyChecking=no remote/log_collector/log_collector.tar $SSH_USER@$VM2_IP:/tmp/
+    - scp -i ~/.ssh/id_rsa remote/log_collector/log_collector.tar $SSH_USER@$VM2_IP:/tmp/
     - |
-      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP << 'EOF'
+      ssh -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP << 'EOF'
         echo "Loading Docker image..."
         docker load -i /tmp/log_collector.tar
         docker stop log_collector || true
@@ -101,7 +130,7 @@ deploy-remote:
         docker run -d --name log_collector --restart unless-stopped log_collector:latest
         docker ps | grep log_collector
         rm /tmp/log_collector.tar
-        echo "✓ Log Collector deployed on VM2"
+        echo "Log Collector deployed on VM2!"
       EOF
   only:
     - main
