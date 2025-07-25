@@ -97,93 +97,32 @@ debug-ssh-vars:
       fi
   when: manual
 
-# Test SSH connection to remote VM2
+# Test SSH connection to remote VM2 (using shell runner with VPN access)
 test-remote-connection:
   stage: test
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client
-    - |
-      # Check if variables exist
-      if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$VM2_IP" ] || [ -z "$SSH_USER" ]; then
-        echo "ERROR: Required variables are not set!"
-        echo "Please set SSH_PRIVATE_KEY, VM2_IP, and SSH_USER in GitLab CI/CD settings"
-        exit 1
-      fi
-    - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning':' ssh-keyscan failed"
   script:
     - echo "Testing connection to VM2 at $VM2_IP as user $SSH_USER..."
-    - ssh -v -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
+    - |
+      # Use existing SSH key from host
+      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
+  tags:
+    - shell
+    - vpn
   when: manual
   only:
     - main
 
-# Add this job to your .gitlab-ci.yml for debugging
-
-# Detailed SSH debugging
-debug-ssh-connection:
-  stage: test
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client
-  script:
-    - echo "=== SSH Debug Information ==="
-    - echo "VM2_IP':' $VM2_IP"
-    - echo "SSH_USER':' $SSH_USER"
-    - echo "SSH_PRIVATE_KEY length':' ${#SSH_PRIVATE_KEY} characters"
-    - |
-      # Check key format
-      echo "=== Checking SSH key format ==="
-      mkdir -p ~/.ssh
-      echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-      chmod 600 ~/.ssh/id_rsa
-      
-      # Check if it's a valid key
-      if head -n 1 ~/.ssh/id_rsa | grep -q "BEGIN"; then
-        echo "✓ Key has proper BEGIN header"
-      else
-        echo "✗ Key missing BEGIN header"
-        echo "First line of key:"
-        head -n 1 ~/.ssh/id_rsa
-      fi
-      
-      # Count lines in key
-      echo "Key has $(wc -l < ~/.ssh/id_rsa) lines"
-      
-    - |
-      echo "=== Testing SSH connection ==="
-      # Try to connect with verbose output
-      ssh -vvv -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Connection successful'" || true
-      
-    - |
-      echo "=== Alternative: Testing with password (if key fails) ==="
-      echo "If the above failed, you might need to:"
-      echo "1. Check if the SSH key is correctly formatted"
-      echo "2. Ensure the public key is in VM2's ~/.ssh/authorized_keys"
-      echo "3. Check VM2's SSH logs: sudo journalctl -u ssh -f"
-  when: manual
-
-# Deploy log_collector to remote VM2
+# Deploy log_collector to remote VM2 (using shell runner with VPN access)
 deploy-remote:
   stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client
-    - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null
   script:
     - echo "Deploying Log Collector to remote VM2..."
     - |
-      # Copy source files
-      scp -i ~/.ssh/id_rsa -r remote/log_collector $SSH_USER@$VM2_IP:/tmp/
+      # Copy source files using host's SSH access
+      scp -o StrictHostKeyChecking=no -r remote/log_collector $SSH_USER@$VM2_IP:/tmp/
       
       # Build and run on VM2
-      ssh -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP << 'EOF'
+      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP << 'EOF'
         echo "Building Docker image on VM2..."
         cd /tmp/log_collector
         docker build -t log_collector:latest .
@@ -194,6 +133,9 @@ deploy-remote:
         rm -rf /tmp/log_collector
         echo "Log Collector deployed on VM2!"
       EOF
+  tags:
+    - shell
+    - vpn
   only:
     - main
   when: manual
