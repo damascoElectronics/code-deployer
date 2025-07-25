@@ -9,7 +9,7 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
 
-# Test the Python scripts
+# Test the Python scripts (using Docker runner)
 test-python:
   stage: test
   image: python:3.9-slim
@@ -18,6 +18,8 @@ test-python:
     - python -m py_compile local/log_processor/app.py
     - python -m py_compile remote/log_collector/app.py
     - echo "Python syntax check passed!"
+  tags:
+    - docker  # Explicitly use Docker runner
 
 # Build log_processor for local (VM1)
 build-log-processor:
