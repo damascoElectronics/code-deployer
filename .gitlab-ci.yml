@@ -54,25 +54,12 @@ build-log-collector:
   only:
     - main
 
-# Alternative: Build using mounted docker socket (if dind doesn't work)
-build-log-processor-alt:
-  stage: build
-  image: docker:latest
-  script:
-    - echo "Building Log Processor (using host Docker)..."
-    - cd local/log_processor
-    - docker build -t log_processor:latest .
-    - echo "Log Processor built!"
-  tags:
-    - shell
-  when: manual
-
-# Deploy log_processor locally on VM1
+# Deploy log_processor locally on VM1 using shell runner
 deploy-local:
   stage: deploy
-  image: docker:latest
   script:
     - echo "Deploying Log Processor on local VM1..."
+    - cd local
     - docker stop log_processor || true
     - docker rm log_processor || true
     - docker run -d --name log_processor --restart unless-stopped log_processor:latest
@@ -84,19 +71,52 @@ deploy-local:
     - main
   when: manual
 
+# Debug SSH variables
+debug-ssh-vars:
+  stage: test
+  image: alpine:latest
+  script:
+    - echo "Checking CI/CD variables..."
+    - |
+      if [ -z "$SSH_PRIVATE_KEY" ]; then
+        echo "ERROR: SSH_PRIVATE_KEY is not set in GitLab CI/CD variables!"
+      else
+        echo "SSH_PRIVATE_KEY is set (length: ${#SSH_PRIVATE_KEY} chars)"
+      fi
+    - |
+      if [ -z "$VM2_IP" ]; then
+        echo "ERROR: VM2_IP is not set in GitLab CI/CD variables!"
+      else
+        echo "VM2_IP is set to: $VM2_IP"
+      fi
+    - |
+      if [ -z "$SSH_USER" ]; then
+        echo "ERROR: SSH_USER is not set in GitLab CI/CD variables!"
+      else
+        echo "SSH_USER is set to: $SSH_USER"
+      fi
+  when: manual
+
 # Test SSH connection to remote VM2
 test-remote-connection:
   stage: test
   image: alpine:latest
   before_script:
     - apk add --no-cache openssh-client
+    - |
+      # Check if variables exist
+      if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$VM2_IP" ] || [ -z "$SSH_USER" ]; then
+        echo "ERROR: Required variables are not set!"
+        echo "Please set SSH_PRIVATE_KEY, VM2_IP, and SSH_USER in GitLab CI/CD settings"
+        exit 1
+      fi
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: ssh-keyscan failed"
   script:
-    - echo "Testing connection to remote VM2..."
-    - ssh -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
+    - echo "Testing connection to VM2 at $VM2_IP as user $SSH_USER..."
+    - ssh -v -i ~/.ssh/id_rsa $SSH_USER@$VM2_IP "echo 'Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
@@ -106,15 +126,15 @@ deploy-remote:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client git
+    - apk add --no-cache openssh-client
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts
+    - ssh-keyscan -H $VM2_IP >> ~/.ssh/known_hosts 2>/dev/null
   script:
     - echo "Deploying Log Collector to remote VM2..."
     - |
-      # Copy the source files to VM2
+      # Copy source files
       scp -i ~/.ssh/id_rsa -r remote/log_collector $SSH_USER@$VM2_IP:/tmp/
       
       # Build and run on VM2
