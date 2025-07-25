@@ -76,7 +76,7 @@ test-remote-connection:
     - apk add --no-cache openssh-client
   script:
     - echo "Testing connection to remote VM2..."
-    - ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2' && docker --version"
+    - ssh $SSH_USER@$VM2_IP "echo '✓ Successfully connected to VM2' && docker --version"
   when: manual
   only:
     - main
