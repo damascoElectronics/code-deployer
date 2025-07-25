@@ -20,38 +20,30 @@ test-python:
     - echo "Python syntax check passed!"
   # Removed tags requirement - will use any available Docker runner
 
-# Build log_processor for local (VM1)
+# Build log_processor for local (VM1) - using shell runner
 build-log-processor:
   stage: build
-  image: docker:latest
-  services:
-    - name: docker:dind
-      alias: docker
-      command: ["--tls=false"]
   script:
     - echo "Building Log Processor..."
-    - docker info
     - cd local/log_processor
     - docker build -t log_processor:latest .
     - docker images | grep log_processor
     - echo "Log Processor built successfully!"
+  tags:
+    - shell
   only:
     - main
 
-# Build log_collector for remote (VM2) - just test build
+# Build log_collector for remote (VM2) - using shell runner
 build-log-collector:
   stage: build
-  image: docker:latest
-  services:
-    - name: docker:dind
-      alias: docker
-      command: ["--tls=false"]
   script:
     - echo "Testing Log Collector build..."
-    - docker info
     - cd remote/log_collector
     - docker build -t log_collector:latest .
     - echo "Log Collector builds successfully!"
+  tags:
+    - shell
   only:
     - main
 
