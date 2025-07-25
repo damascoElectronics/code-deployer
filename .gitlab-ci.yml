@@ -54,12 +54,26 @@ build-log-collector:
   only:
     - main
 
+# Test shell runner
+test-shell-runner:
+  stage: test
+  script:
+    - echo "Testing shell runner..."
+    - echo "User':' $(whoami)"
+    - echo "Directory':' $(pwd)"
+    - echo "Docker version':' $(docker --version)"
+    - echo "Shell runner is working!"
+  tags:
+    - shell
+  when: manual
+
 # Deploy log_processor locally on VM1 using shell runner
 deploy-local:
   stage: deploy
   script:
     - echo "Deploying Log Processor on local VM1..."
-    - cd local
+    - cd local/log_processor
+    - docker build -t log_processor:latest .
     - docker stop log_processor || true
     - docker rm log_processor || true
     - docker run -d --name log_processor --restart unless-stopped log_processor:latest
@@ -112,16 +126,6 @@ test-remote-connection:
   only:
     - main
 
-test-shell-runner:
-  stage: test
-  script:
-    - echo "Shell runner is working!"
-    - whoami
-    - pwd
-  tags:
-    - shell
-  when: manual
-
 # Deploy log_collector to remote VM2 (using shell runner with VPN access)
 deploy-remote:
   stage: deploy
@@ -143,6 +147,47 @@ deploy-remote:
         rm -rf /tmp/log_collector
         echo "Log Collector deployed on VM2!"
       EOF
+  tags:
+    - shell
+    - vpn
+  only:
+    - main
+  when: manual
+
+# Complete deployment - both VMs
+deploy-all:
+  stage: deploy
+  script:
+    - echo "Starting complete deployment..."
+    - |
+      # Deploy to VM1
+      echo "=== Deploying to VM1 ==="
+      cd local/log_processor
+      docker build -t log_processor:latest .
+      docker stop log_processor || true
+      docker rm log_processor || true
+      docker run -d --name log_processor --restart unless-stopped log_processor:latest
+      
+      # Deploy to VM2
+      echo "=== Deploying to VM2 ==="
+      cd $CI_PROJECT_DIR
+      scp -o StrictHostKeyChecking=no -r remote/log_collector $SSH_USER@$VM2_IP:/tmp/
+      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP << 'EOF'
+        cd /tmp/log_collector
+        docker build -t log_collector:latest .
+        docker stop log_collector || true
+        docker rm log_collector || true
+        docker run -d --name log_collector --restart unless-stopped log_collector:latest
+        rm -rf /tmp/log_collector
+      EOF
+      
+      # Show status
+      echo "=== Deployment Status ==="
+      echo "VM1 containers:"
+      docker ps | grep log_processor || echo "log_processor not running!"
+      echo ""
+      echo "VM2 containers:"
+      ssh -o StrictHostKeyChecking=no $SSH_USER@$VM2_IP "docker ps | grep log_collector" || echo "log_collector not running!"
   tags:
     - shell
     - vpn
