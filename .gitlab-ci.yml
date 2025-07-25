@@ -57,7 +57,7 @@ test_docker_build:
     - shell-runner-with-vpn
   script:
     - echo "Testing Docker image builds..."
-    - echo "Current directory: $(pwd)"
+    - echo "Current directory':' $(pwd)"
     - echo "Available Docker:"
     - docker --version
     
