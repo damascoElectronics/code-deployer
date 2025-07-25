@@ -8,8 +8,6 @@ variables:
 # Test stage - verify Python files can be compiled and basic syntax check
 test_python_syntax:
   stage: test
-  tags:
-    - shell-runner-with-vpn
   script:
     - echo "Starting Python syntax and compilation tests..."
     - echo "Python version:"
@@ -53,8 +51,6 @@ test_python_syntax:
 # Build stage - test Docker image building (optional)
 test_docker_build:
   stage: build
-  tags:
-    - shell-runner-with-vpn
   script:
     - echo "Testing Docker image builds..."
     - echo "Current directory':' $(pwd)"
