@@ -1,12 +1,11 @@
 stages:
   - test
   - build
-  - connectivity
 
 variables:
   PYTHON_VERSION: '3.9'
 
-# Test stage - verify Python files can be compiled and basic syntax check
+# Test stage - all validation tests
 test_python_syntax:
   stage: test
   script:
@@ -53,17 +52,11 @@ test_python_syntax:
     # Cleanup
     - deactivate || true
     - rm -rf test_venv
-    
-  only:
-    - main
-    - develop
-    - merge_requests
 
-# Build stage - test Docker image building (optional)
-test_docker_build:
-  stage: build
+test_docker_availability:
+  stage: test
   script:
-    - echo 'Testing Docker image builds...'
+    - echo 'Testing Docker availability...'
     - echo 'Current directory'
     - pwd
     - echo 'Available Docker'
@@ -75,35 +68,20 @@ test_docker_build:
     
     # Check if user can access docker
     - echo 'Testing Docker access...'
-    - docker info || echo 'Docker access failed - permission issue'
+    - sudo docker info || docker info || echo 'Docker access failed - will use sudo in builds'
     
-    # Try to build with sudo if direct access fails
-    - echo 'Building log_processor Docker image...'
-    - cd local/log_processor
-    - sudo docker build -t log_processor_test:latest . || docker build -t log_processor_test:latest .
-    - echo '✅ log_processor Docker build successful'
-    - cd ../../
+    # Test basic Docker functionality
+    - echo 'Testing basic Docker build...'
+    - echo 'FROM alpine:latest' > test_dockerfile
+    - echo 'RUN echo "test"' >> test_dockerfile
+    - sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo 'Docker build test failed'
+    - sudo docker rmi test_image || docker rmi test_image || true
+    - rm test_dockerfile
     
-    # Test building log_collector image  
-    - echo 'Building log_collector Docker image...'
-    - cd remote/log_collector
-    - sudo docker build -t log_collector_test:latest . || docker build -t log_collector_test:latest .
-    - echo '✅ log_collector Docker build successful'
-    - cd ../../
-    
-    # Clean up test images
-    - sudo docker rmi log_processor_test:latest || docker rmi log_processor_test:latest || true
-    - sudo docker rmi log_collector_test:latest || docker rmi log_collector_test:latest || true
-    
-  only:
-    - main
-    - develop
-    - merge_requests
-  allow_failure: true  # Docker might have permission issues
+  allow_failure: true
 
-# Connectivity stage - test SSH connection to VM2
 test_ssh_connection:
-  stage: connectivity
+  stage: test
   script:
     - echo 'Testing SSH connection to VM2...'
     - echo 'Current user and home directory'
@@ -123,10 +101,6 @@ test_ssh_connection:
     - echo 'Testing SSH connection...'
     - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'echo "✅ SSH connection successful from $(hostname) to $(hostname)"' || echo '❌ SSH connection failed'
     
-    # Test SSH with common troubleshooting
-    - echo 'SSH connection diagnostics...'
-    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -v starion@192.168.0.11 'uptime' 2>&1 | head -20 || echo 'Verbose SSH failed'
-    
     # Test if we can access VM2 file system
     - echo 'Testing file system access on VM2...'
     - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'ls -la /home/starion' || echo 'File system access failed'
@@ -135,8 +109,65 @@ test_ssh_connection:
     - echo 'Testing Docker on VM2...'
     - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker --version' || echo 'Docker not accessible on VM2'
     
+  allow_failure: true
+
+# Build stage - generate containers for deployment
+build_log_processor:
+  stage: build
+  script:
+    - echo 'Building log_processor container...'
+    - cd local/log_processor
+    
+    # Build the Docker image
+    - echo 'Building Docker image for log_processor...'
+    - sudo docker build -t log_processor:latest . || docker build -t log_processor:latest .
+    
+    # Save the image as tar file for transfer
+    - echo 'Exporting image to tar file...'
+    - sudo docker save log_processor:latest -o log_processor_image.tar || docker save log_processor:latest -o log_processor_image.tar
+    
+    # Verify the tar file was created
+    - ls -lh log_processor_image.tar
+    - echo '✅ log_processor container built and exported'
+    
+    # Move tar file to build artifacts location
+    - mv log_processor_image.tar ../../
+    
+  artifacts:
+    paths:
+      - log_processor_image.tar
+    expire_in: 1 hour
   only:
     - main
     - develop
     - merge_requests
-  allow_failure: true  # SSH might need configuration
+
+build_log_collector:
+  stage: build
+  script:
+    - echo 'Building log_collector container...'
+    - cd remote/log_collector
+    
+    # Build the Docker image  
+    - echo 'Building Docker image for log_collector...'
+    - sudo docker build -t log_collector:latest . || docker build -t log_collector:latest .
+    
+    # Save the image as tar file for transfer
+    - echo 'Exporting image to tar file...'
+    - sudo docker save log_collector:latest -o log_collector_image.tar || docker save log_collector:latest -o log_collector_image.tar
+    
+    # Verify the tar file was created
+    - ls -lh log_collector_image.tar
+    - echo '✅ log_collector container built and exported'
+    
+    # Move tar file to build artifacts location
+    - mv log_collector_image.tar ../../
+    
+  artifacts:
+    paths:
+      - log_collector_image.tar
+    expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
