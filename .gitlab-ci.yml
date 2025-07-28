@@ -1,6 +1,7 @@
 stages:
   - test
   - build
+  - deploy
 
 variables:
   PYTHON_VERSION: '3.9'
@@ -163,6 +164,109 @@ build_log_collector:
     paths:
       - log_collector_image_id.txt
     expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Deploy stage - deploy containers to VMs and verify execution
+deploy_log_processor_vm1:
+  stage: deploy
+  script:
+    - echo 'Deploying log_processor to VM1 (local)...'
+    
+    # Stop any existing container
+    - echo 'Stopping existing log_processor container...'
+    - sudo docker stop log_processor_container 2>/dev/null || docker stop log_processor_container 2>/dev/null || echo 'No existing container to stop'
+    - sudo docker rm log_processor_container 2>/dev/null || docker rm log_processor_container 2>/dev/null || echo 'No existing container to remove'
+    
+    # Run the new container
+    - echo 'Starting log_processor container on VM1...'
+    - sudo docker run -d --name log_processor_container --restart unless-stopped log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped log_processor:latest
+    
+    # Verify container is running
+    - echo 'Verifying log_processor container status...'
+    - sleep 5
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
+    - sudo docker logs log_processor_container || docker logs log_processor_container
+    - echo '✅ log_processor deployed and running on VM1'
+    
+  dependencies:
+    - build_log_processor
+  only:
+    - main
+    - develop
+    - merge_requests
+
+deploy_log_collector_vm2:
+  stage: deploy
+  script:
+    - echo 'Deploying log_collector to VM2 (remote)...'
+    
+    # Save image to tar file for transfer
+    - echo 'Preparing log_collector image for transfer...'
+    - sudo docker save log_collector:latest -o log_collector_transfer.tar || docker save log_collector:latest -o log_collector_transfer.tar
+    - ls -lh log_collector_transfer.tar
+    
+    # Transfer image to VM2
+    - echo 'Transferring image to VM2...'
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no log_collector_transfer.tar starion@192.168.0.11:/tmp/
+    
+    # Load and run container on VM2
+    - echo 'Loading and running container on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Loading Docker image on VM2...";
+        docker load -i /tmp/log_collector_transfer.tar;
+        echo "Stopping existing log_collector container...";
+        docker stop log_collector_container 2>/dev/null || echo "No existing container to stop";
+        docker rm log_collector_container 2>/dev/null || echo "No existing container to remove";
+        echo "Starting log_collector container...";
+        docker run -d --name log_collector_container --restart unless-stopped log_collector:latest;
+        echo "Verifying container status...";
+        sleep 5;
+        docker ps | grep log_collector_container;
+        docker logs log_collector_container;
+        echo "Cleaning up transfer file...";
+        rm -f /tmp/log_collector_transfer.tar;
+      '
+    
+    # Clean up local transfer file
+    - rm -f log_collector_transfer.tar
+    - echo '✅ log_collector deployed and running on VM2'
+    
+  dependencies:
+    - build_log_collector
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Verify deployment - check both containers are running
+verify_deployment:
+  stage: deploy
+  script:
+    - echo 'Verifying both containers are running...'
+    
+    # Check VM1 container
+    - echo 'Checking log_processor on VM1...'
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
+    - sudo docker logs --tail 10 log_processor_container || docker logs --tail 10 log_processor_container
+    
+    # Check VM2 container
+    - echo 'Checking log_collector on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Container status on VM2:";
+        docker ps | grep log_collector_container;
+        echo "Recent logs from VM2:";
+        docker logs --tail 10 log_collector_container;
+      '
+    
+    - echo '✅ Deployment verification complete'
+    - echo 'Both containers should be running and logging messages every 30 seconds'
+    
+  dependencies:
+    - deploy_log_processor_vm1
+    - deploy_log_collector_vm2
   only:
     - main
     - develop
