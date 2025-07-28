@@ -2,6 +2,7 @@ stages:
   - test
   - build
   - deploy
+  - stop
 
 variables:
   PYTHON_VERSION: '3.9'
@@ -267,6 +268,71 @@ verify_deployment:
   dependencies:
     - deploy_log_processor_vm1
     - deploy_log_collector_vm2
+  only:
+    - develop
+    - merge_requests
+
+
+# Stop stage - manually stop containers
+stop_log_processor_vm1:
+  stage: stop
+  script:
+    - echo 'Stopping log_processor on VM1...'
+    
+    # Check if container exists and is running
+    - echo 'Checking container status before stopping...'
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container || echo 'Container not running'
+    
+    # Stop the container gracefully
+    - echo 'Stopping log_processor container...'
+    - sudo docker stop log_processor_container || docker stop log_processor_container || echo 'Container was not running'
+    
+    # Remove the container
+    - echo 'Removing log_processor container...'
+    - sudo docker rm log_processor_container || docker rm log_processor_container || echo 'Container was already removed'
+    
+    # Verify container is stopped
+    - echo 'Verifying container is stopped...'
+    - sudo docker ps -a | grep log_processor_container || docker ps -a | grep log_processor_container || echo 'Container completely removed'
+    
+    - echo '✅ log_processor stopped and removed from VM1'
+    
+  when: manual
+  allow_failure: true
+  only:
+    - main
+    - develop
+    - merge_requests
+
+
+stop_all_containers:
+  stage: stop
+  script:
+    - echo 'Stopping both containers...'
+    
+    # Stop VM1 container
+    - echo '=== Stopping VM1 container ==='
+    - sudo docker stop log_processor_container || docker stop log_processor_container || echo 'VM1 container was not running'
+    - sudo docker rm log_processor_container || docker rm log_processor_container || echo 'VM1 container was already removed'
+    
+    # Stop VM2 container
+    - echo '=== Stopping VM2 container ==='
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        docker stop log_collector_container || echo "VM2 container was not running";
+        docker rm log_collector_container || echo "VM2 container was already removed";
+      '
+    
+    # Final verification
+    - echo '=== Final verification ==='
+    - echo 'VM1 container status'
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container || echo 'VM1 container stopped'
+    - echo 'VM2 container status'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "VM2 container stopped"'
+    
+    - echo '✅ All containers stopped successfully'
+    
+  when: manual
+  allow_failure: true
   only:
     - main
     - develop
