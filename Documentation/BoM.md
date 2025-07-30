@@ -8,14 +8,14 @@
   * Version: 3.9+ (recommended)
   * Source: Official Python.org
   * Purpose: Primary development language
-  * CVE Tracking: [Python CVE Database](https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=python)
+  * CVE Tracking: [Python CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=%22python%22%203.9&resultType=records)
 
 ### Message Queue Infrastructure
 * **RabbitMQ**
-  * Version: Latest stable (3.12.x)
+  * Version: 4.1.2
   * Source: RabbitMQ Official / Docker Hub
   * Purpose: Message queue for log processing pipeline
-  * CVE Tracking: [RabbitMQ Security](https://www.rabbitmq.com/news.html)
+  * CVE Tracking: [RabbitMQ CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=RabbitMQ&resultType=records)
   * Dependencies: Erlang/OTP runtime
 
 ## Python Dependencies (requirements.txt)
@@ -25,7 +25,7 @@
   * Version: 2.8.2
   * Source: PyPI
   * Purpose: Date/time parsing utilities
-  * CVE Tracking: [python-dateutil CVEs](https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=python-dateutil)
+  * CVE Tracking: [python-dateutil CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=%22python-dateutil%22&resultType=records)
 
 ### Additional Python Libraries (Recommended)
 * **watchdog**
@@ -38,13 +38,13 @@
   * Version: 1.3.0+
   * Source: PyPI
   * Purpose: RabbitMQ Python client
-  * CVE Tracking: [Pika GitHub Security](https://github.com/pika/pika/security)
+  * CVE Tracking: [Pika CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=%22pika%22&resultType=records)
 
 * **requests**
   * Version: 2.31.0+
   * Source: PyPI
   * Purpose: HTTP client for API communications
-  * CVE Tracking: [Requests CVEs](https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=requests)
+  * CVE Tracking: [Requests CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=%22requests%22%20python&resultType=records)
 
 * **flask** or **fastapi**
   * Version: Flask 2.3.0+ or FastAPI 0.100.0+
@@ -88,16 +88,6 @@
   * Executor Type: Shell executor
   * CVE Tracking: GitLab security advisories
 
-### Operating System Components
-* **Debian GNU/Linux** (VM1)
-  * Version: Latest stable (Bookworm 12.x)
-  * Purpose: Host OS for GitLab and log processor
-  * CVE Tracking: [Debian Security Tracker](https://security-tracker.debian.org/)
-
-* **Linux Distribution** (VM2 - Docker host)
-  * Purpose: Host OS for log collector
-  * CVE Tracking: Distribution-specific security feeds
-
 ## Static Analysis & Security Tools
 
 ### Code Quality & Security Analysis
@@ -105,37 +95,32 @@
   * Version: 1.7.5+
   * Source: PyPI
   * Purpose: Python security linting
-  * Usage: `bandit -r ./src/`
   * CVE Tracking: [Bandit GitHub](https://github.com/PyCQA/bandit)
 
 * **safety**
   * Version: 2.3.0+
   * Source: PyPI
   * Purpose: Python dependency vulnerability scanning
-  * Usage: `safety check`
-  * CVE Tracking: SafetyDB integration
+  * CVE Tracking: [SafetyDB integration](https://github.com/pyupio/safety/issues)
 
 * **semgrep**
   * Version: 1.45.0+
   * Source: Semgrep Inc.
   * Purpose: Static application security testing (SAST)
-  * Usage: `semgrep --config=auto ./src/`
-  * CVE Tracking: Semgrep security rules database
+  * CVE Tracking: [Semgrep CVEs National Vulnerability Database (NVD)](https://nvd.nist.gov/vuln/search#/nvd/home?keyword=semgrep&resultType=records)
 
 ### Container Security
 * **trivy**
   * Version: 0.45.0+
   * Source: Aqua Security
   * Purpose: Container image vulnerability scanning
-  * Usage: `trivy image python:3.11-slim`
-  * CVE Tracking: [Trivy Database](https://github.com/aquasecurity/trivy-db)
+  * CVE Tracking: [Trivy GitHub Security](https://github.com/aquasecurity/trivy-db)
 
 * **hadolint**
   * Version: 2.12.0+
   * Source: GitHub (hadolint/hadolint)
   * Purpose: Dockerfile linting and security checks
-  * Usage: `hadolint Dockerfile`
-  * CVE Tracking: Docker best practices enforcement
+  * CVE Tracking: [hadolint GitHub Securityase](https://github.com/hadolint/hadolint/security)
 
 ## Testing Framework
 
@@ -163,19 +148,6 @@
   * Source: PyPI
   * Purpose: Load testing for APIs
   * CVE Tracking: [Locust GitHub](https://github.com/locustio/locust)
-
-## Network & Infrastructure Components
-
-### VPN & Networking
-* **OpenVPN** or **WireGuard**
-  * Purpose: Secure VM-to-VM communication
-  * CVE Tracking: [OpenVPN Security](https://openvpn.net/security/) / [WireGuard Security](https://www.wireguard.com/papers/wireguard.pdf)
-
-* **SSH/OpenSSH**
-  * Version: 8.0+
-  * Purpose: Secure shell access between VMs
-  * Key Type: ED25519
-  * CVE Tracking: [OpenSSH Security](https://www.openssh.com/security.html)
 
 ## Database Components (Future)
 
@@ -217,7 +189,7 @@
 5. **Distribution Security Teams**: For OS packages
 
 ### Automation Tools for CVE Tracking
-* **Dependabot** (GitHub) or **GitLab Dependency Scanning**
+* **GitLab Dependency Scanning**
   * Purpose: Automated dependency vulnerability detection
   * Integration: GitLab CI/CD pipeline
 
@@ -245,34 +217,6 @@
   * Usage: Automated security scanning in CI/CD
   * CVE Tracking: [OWASP ZAP Releases](https://github.com/zaproxy/zaproxy/releases)
 
-## Build & Deployment Tools
-
-### Container Orchestration (Future)
-* **docker-compose**
-  * Version: 2.20.0+
-  * Source: Docker Inc.
-  * Purpose: Multi-container application definition
-  * CVE Tracking: Docker security advisories
-
-### Configuration Management
-* **python-dotenv**
-  * Version: 1.0.0+
-  * Source: PyPI
-  * Purpose: Environment variable management
-  * CVE Tracking: Monitor PyPI advisories
-
-## Recommended GitLab CI/CD Integration
-
-```yaml
-# .gitlab-ci.yml security scanning stages
-security_scan:
-  stage: test
-  script:
-    - safety check
-    - bandit -r ./src/
-    - semgrep --config=auto ./src/
-    - trivy image $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-```
 
 ## Update & Maintenance Schedule
 
