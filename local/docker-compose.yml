@@ -13,7 +13,7 @@ services:
       - ./data:/data
     networks:
       - log_network
-    # Future: add depends_on for database service
+    # TODO: add depends_on for database service
 
 networks:
   log_network:
