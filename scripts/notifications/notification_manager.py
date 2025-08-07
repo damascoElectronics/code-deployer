@@ -14,8 +14,6 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from notifications.email_notifier import EmailNotifier
-from notifications.slack_notifier import SlackNotifier
-from notifications.teams_notifier import TeamsNotifier
 from notifications.webhook_notifier import WebhookNotifier
 from common.logger import get_logger
 from common.config_loader import load_config
@@ -37,14 +35,6 @@ class NotificationManager:
         # Email notifier
         if self.config.get('email', {}).get('enabled', False):
             notifiers['email'] = EmailNotifier(self.config['email'])
-        
-        # Slack notifier
-        if self.config.get('slack', {}).get('enabled', False):
-            notifiers['slack'] = SlackNotifier(self.config['slack'])
-        
-        # Teams notifier
-        if self.config.get('teams', {}).get('enabled', False):
-            notifiers['teams'] = TeamsNotifier(self.config['teams'])
         
         # Webhook notifier
         if self.config.get('webhooks', {}).get('enabled', False):
