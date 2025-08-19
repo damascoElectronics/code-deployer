@@ -50,9 +50,11 @@ class DataProcessor:
         Raises:
             FileNotFoundError: If the file does not exist.
             IOError: If there are problems reading the file.
+            OSError: If there are problems with permissions or system.
         """
         if not os.path.exists(self.data_source):
-            raise FileNotFoundError(f"File not found: {self.data_source}")
+            raise FileNotFoundError(
+                f"File not found: {self.data_source}")
             
         processed_items = []
         
@@ -84,8 +86,10 @@ class DataProcessor:
         return self._processed_count
 
     @staticmethod
-    def validate_file_extension(filename: str, 
-                              allowed_extensions: Optional[List[str]] = None) -> bool:
+    
+    def validate_file_extension(filename: str,
+                                allowed_extensions: Optional[List[str]] = None
+                                ) -> bool:
         """Validates whether the file has an allowed extension.
 
         Args:
@@ -121,3 +125,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
