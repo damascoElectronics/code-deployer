@@ -1,0 +1,13 @@
+repos:
+  # Repository to hook the pylint
+  - repo: https://github.com/PyCQA/pylint
+    # spceifict version
+    rev: v3.0.0
+    # hooks list to be ejecuted
+    hooks:
+      # specific ID hook 
+      - id: pylint
+        # Additional argumentes for pylint
+        args: [--rcfile=.pylintrc]
+        # Dependencies needed by pylint
+        additional_dependencies: [pylint-google-style-guide-imports-enforcing]
