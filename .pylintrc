@@ -1,0 +1,43 @@
+[MASTER]
+load-plugins=pylint.extensions.docparams
+
+[MESSAGES CONTROL]
+disable=missing-module-docstring,
+        too-few-public-methods,
+        too-many-arguments,
+        too-many-locals,
+        duplicate-code
+
+enable=useless-suppression,
+       use-symbolic-message-instead
+
+[REPORTS]
+output-format=colorized
+reports=yes
+score=yes
+
+[FORMAT]
+max-line-length=80
+indent-string='    '
+indent-after-paren=4
+single-line-if-stmt=no
+single-line-class-stmt=no
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,id,ok
+good-names-rgxs=^[_a-z][_a-z0-9]*$
+class-naming-style=PascalCase
+function-naming-style=snake_case
+method-naming-style=snake_case
+variable-naming-style=snake_case
+const-naming-style=UPPER_CASE
+module-naming-style=snake_case
+
+[SIMILARITIES]
+min-similarity-lines=4
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=no
+
+[MISCELLANEOUS]
+notes=FIXME,XXX,TODO
