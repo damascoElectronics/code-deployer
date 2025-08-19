@@ -1,3 +1,0 @@
-# Basic requirements for building
-# more dependencies as add here for build features
-python-dateutil==2.8.2
