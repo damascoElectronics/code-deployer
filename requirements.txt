@@ -1,0 +1,5 @@
+pylint>=2.17.0
+pylint-google-style-guide-imports-enforcing>=1.0.0
+# Opcional: reports on JUnit format
+pytest
+pytest-pylint

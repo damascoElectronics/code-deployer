@@ -1,111 +1,124 @@
-# 
-stages:          # List of stages for jobs, and their order of execution
-  - quality
-  - security
-#  - build
-#  - test
-#  - deploy
+# stages
+stages:
+  - lint
+  - test
+  - build
 
-security_vulnerability_scan:
-  stage: security
-  image: python:3.9-slim
-  tags:
-    - security
-    - vulnerability-scan
-  before_script:
-    # Install security scanning tools
-    - apt-get update && apt-get install -y curl wget git jq
-    - pip install safety pip-audit cyclonedx-bom
-    
-    # Install Syft for SBOM generation
-    - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-    
-    # Install Grype for vulnerability scanning
-    - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-    
-  script:
-    - echo "=== Starting Security Vulnerability Assessment ==="
-    
-    # Generate SBOM for both containers
-    - echo "=== Generating Software Bill of Materials (SBOM) ==="
-    - cyclonedx-py requirements -i local/log_processor/requirements.txt -o log_processor_sbom.json --format json
-    - cyclonedx-py requirements -i remote/log_collector/requirements.txt -o log_collector_sbom.json --format json
-    
-    # Generate CPE-compatible asset list
-    - echo "=== Generating CPE Asset List ==="
-    - python scripts/cpe_assets.py
-    
-    # Python package vulnerability scanning with Safety
-    - echo "=== Running Safety vulnerability scan ==="
-    - safety check --json --output safety-report.json -r local/log_processor/requirements.txt || true
-    - safety check --json --output safety-report-collector.json -r remote/log_collector/requirements.txt || true
-    
-    # Enhanced vulnerability scanning with pip-audit
-    - echo "=== Running pip-audit vulnerability scan ==="
-    - pip-audit --format=json --output=pip-audit-processor.json -r local/log_processor/requirements.txt || true
-    - pip-audit --format=json --output=pip-audit-collector.json -r remote/log_collector/requirements.txt || true
-    
-    # Container vulnerability scanning with Grype
-    - echo "=== Running container vulnerability scan ==="
-    - grype log_processor_sbom.json -o json --file grype-processor-report.json || true
-    - grype log_collector_sbom.json -o json --file grype-collector-report.json || true
-    
-    # Generate comprehensive vulnerability report
-    - echo "=== Generating comprehensive vulnerability report ==="
-    - python scripts/vulnerability_report.py
-    
-    # Display summary
-    - echo "=== Vulnerability Scan Summary ==="
-    - cat vulnerability-summary.json
-    
-  artifacts:
-    reports:
-      sast: sast-report.json
-    paths:
-      - "*_sbom.json"
-      - "*-report.json"
-      - "vulnerability-summary.json"
-      - "cpe-assets.json"
-      - "vulnerability-detailed-report.html"
-    expire_in: 30 days
-  allow_failure: false # Fail pipeline if critical vulnerabilities found
+# Global variables 
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-code_quality_analysis:
-  stage: quality
-  image: python:3.9-slim
+# Cache to speed up builds
+cache:
+  paths:
+    - .cache/pip/
+    - venv/
+
+# Job for linting with pylint
+lint:pylint:
+  stage: lint
+  image: python:3.9
   tags:
     - code-quality
+    - static-analysis
   before_script:
-    - apt-get update && apt-get install -y git
-    - pip install pylint black isort mypy bandit
-    - pip install -r local/log_processor/requirements.txt
-    - pip install -r remote/log_collector/requirements.txt
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
-    # Google Style Guide compliance
-    - echo "=== Running pylint with Google style ==="
-    - pylint --rcfile=.pylintrc local/log_processor/app.py remote/log_collector/app.py || true
+    # Run pylint and generate reports
+    - mkdir -p reports
+    - pylint src/ --output-format=text --reports=y > reports/pylint-report.txt || true
+    - pylint src/ --output-format=json > reports/pylint-report.json || true
+    - pylint src/ --output-format=parseable > reports/pylint-parseable.txt || true
     
-    # Code formatting check
-    - echo "=== Checking code formatting with black ==="
-    - black --check --diff local/log_processor/app.py remote/log_collector/app.py || true
+    # Generate JUnit report (optional)
+    - pylint src/ --output-format=pylint_junit.JunitReporter > reports/pylint-junit.xml || true
     
-    # Import sorting
-    - echo "=== Checking import sorting ==="
-    - isort --check-only --diff local/log_processor/app.py remote/log_collector/app.py || true
+    # Show summary in console
+    - echo "=== PYLINT SUMMARY ==="
+    - tail -n 20 reports/pylint-report.txt
     
-    # Type checking
-    - echo "=== Running type checking ==="
-    - mypy local/log_processor/app.py remote/log_collector/app.py || true
-    
-    # Basic security linting
-    - echo "=== Running basic security analysis ==="
-    - bandit -r local/log_processor/ remote/log_collector/ -f json -o bandit-report.json || true
-    - cat bandit-report.json
+    # Check for critical errors (optional)
+    - pylint src/ --fail-under=8.0 --output-format=text
   artifacts:
-    reports:
-      codequality: code-quality-report.json
+    when: always
     paths:
-      - bandit-report.json
-      - pylint-report.txt
+      - reports/
+    expire_in: 1 week
+    reports:
+      junit: reports/pylint-junit.xml
+  allow_failure: false  # Set to true if you don't want the pipeline to fail.
+
+# Alternative job with more settings
+lint:pylint-detailed:
+  stage: lint
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/pylint
+    
+    # Analysis by modules
+    - find src/ -name "*.py" -exec pylint {} --output-format=json \; > reports/pylint/individual-files.json || true
+    
+    # Full report
+    - pylint src/ --output-format=text --reports=y > reports/pylint/full-report.txt
+    
+    # Report only errors and warnings
+    - pylint src/ --output-format=text --disable=C,R > reports/pylint/errors-warnings.txt || true
+    
+    # Metrics and statistics
+    - pylint src/ --output-format=text --reports=y --msg-template='{path}:{line}:\ [{msg_id}({symbol}), {obj}] {msg}' > reports/pylint/detailed-report.txt
+    
+    # Check minimum score
+    - PYLINT_SCORE=$(pylint src/ --output-format=text | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+    - echo "Pylint Score:\ $PYLINT_SCORE"
+    - python -c "import sys; sys.exit(0 if float('$PYLINT_SCORE') >= 8.0 else 1)"
+  artifacts:
+    when: always
+    paths:
+      - reports/pylint/
     expire_in: 1 week
   allow_failure: true
+
+# Job to genenerate HTML report using pylint-html
+lint:pylint-html:
+  stage: lint
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - pip install pylint pylint-html
+  script:
+    - mkdir -p reports/html
+    - pylint src/ --load-plugins=pylint_html --output-format=pylint_html.HTMLReporter > reports/html/pylint-report.html || true
+  artifacts:
+    when: always
+    paths:
+      - reports/html/
+    expire_in: 1 week
+  allow_failure: true
+
+# To integrate reports into Merge Requests, you can use GitLab Page
+pages:
+  stage: build
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  dependencies:
+    - lint:pylint-html
+  script:
+    - mkdir public
+    - cp -r reports/html/* public/ 2>/dev/null || echo "No HTML reports found"
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
+    - master
