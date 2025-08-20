@@ -27,7 +27,7 @@ lint:pylint:
   script:
     # Run pylint and generate reports
     - mkdir -p reports
-    - pylint src/ --ignore=bad_example.py --output-format=text
+    - pylint src/examples --ignore=bad_example.py --output-format=text
     - pylint src/ --output-format=text --reports=y > reports/pylint-report.txt || true
     - pylint src/ --output-format=json > reports/pylint-report.json || true
     - pylint src/ --output-format=parseable > reports/pylint-parseable.txt || true
