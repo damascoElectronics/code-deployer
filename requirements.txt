@@ -1,5 +1,5 @@
 pylint>=3.3.8
-pylint-google-style-guide-imports-enforcing>=1.0.0
+pylint-google-style-guide-imports-enforcing>=1.3.1
 # Opcional: reports on JUnit format
 pytest
 pytest-pylint
