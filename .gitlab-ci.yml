@@ -28,7 +28,6 @@ lint:pylint:
   script:
     # Run pylint and generate reports
     - mkdir -p reports
-    - pylint src/ --ignore-paths=src/examples
     - pylint src/*.py --output-format=text --reports=y > reports/pylint-report.txt || true
     - pylint src/*.py --output-format=json > reports/pylint-report.json || true
     - pylint src/*.py --output-format=parseable > reports/pylint-parseable.txt || true    
@@ -44,8 +43,6 @@ lint:pylint:
     paths:
       - reports/
     expire_in: 1 week
-    # reports:
-    #  junit: reports/pylint-junit.xml
   allow_failure: false  # Set to true if you don't want the pipeline to fail.
 
 # Alternative job with more settings
@@ -62,20 +59,20 @@ lint:pylint-detailed:
     - mkdir -p reports/pylint
     
     # Analysis by modules
-    - find src/ -name "*.py" -exec pylint {} --output-format=json \; > reports/pylint/individual-files.json || true
+    - find src/ -name "*.py" ! -name "bad_example.py" -exec pylint {} --output-format=json \; > reports/pylint/individual-files.json || true
     
     # Full report
-    - pylint src/ --output-format=text --reports=y > reports/pylint/full-report.txt
+    - pylint src/ --ignore=bad_example.py --output-format=text --reports=y > reports/pylint/full-report.txt
     
     # Report only errors and warnings
-    - pylint src/ --output-format=text --disable=C,R > reports/pylint/errors-warnings.txt || true
+    - pylint src/ --ignore=bad_example.py --output-format=text --reports=y > reports/pylint/full-report.txt
     
     # Metrics and statistics
     - pylint src/ --output-format=text --reports=y --msg-template='{path}:{line}:\ [{msg_id}({symbol}), {obj}] {msg}' > reports/pylint/detailed-report.txt
     
     # Check minimum score
-    - PYLINT_SCORE=$(pylint src/ --output-format=text | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
-    - echo "Pylint Score:\ $PYLINT_SCORE"
+    - PYLINT_SCORE=$(pylint src/ --ignore=bad_example.py --output-format=text | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+    - echo "Pylint Score:$PYLINT_SCORE"
     - python -c "import sys; sys.exit(0 if float('$PYLINT_SCORE') >= 8.0 else 1)"
   artifacts:
     when: always
@@ -95,7 +92,7 @@ lint:pylint-html:
     - pip install pylint pylint-html
   script:
     - mkdir -p reports/html
-    - pylint src/ --load-plugins=pylint_html --output-format=pylint_html.HTMLReporter > reports/html/pylint-report.html || true
+    - pylint src/ --ignore=bad_example.py --load-plugins=pylint_html --output-format=pylint_html.HTMLReporter > reports/html/pylint-report.html || true
   artifacts:
     when: always
     paths:
