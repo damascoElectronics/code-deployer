@@ -41,3 +41,6 @@ ignore-imports=no
 
 [MISCELLANEOUS]
 notes=FIXME,XXX,TODO
+
+[MASTER]
+ignore=bad_example.py
