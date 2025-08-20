@@ -79,7 +79,7 @@ lint:pylint-detailed:
     paths:
       - reports/pylint/
     expire_in: 1 week
-  allow_failure: true
+  allow_failure: false
 
 # Job to genenerate HTML report using pylint-html
 lint:pylint-html:
@@ -98,7 +98,7 @@ lint:pylint-html:
     paths:
       - reports/html/
     expire_in: 1 week
-  allow_failure: true
+  allow_failure: false
 
 # To integrate reports into Merge Requests, you can use GitLab Page
 pages:
