@@ -88,8 +88,6 @@ pages:
   tags:
     - code-quality
     - static-analysis
-  dependencies:
-    - lint:pylint-html
   script:
     - mkdir public
     - cp -r reports/html/* public/ 2>/dev/null || echo "No HTML reports found"
