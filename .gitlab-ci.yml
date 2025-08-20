@@ -32,7 +32,7 @@ lint:pylint:
     - pylint src/ --output-format=parseable > reports/pylint-parseable.txt || true
     
     # Generate JUnit report (optional)
-    - pylint src/ --output-format=pylint_junit.JunitReporter > reports/pylint-junit.xml || true
+    # - pylint src/ --output-format=pylint_junit.JunitReporter > reports/pylint-junit.xml || true
     
     # Show summary in console
     - echo "=== PYLINT SUMMARY ==="
@@ -45,8 +45,8 @@ lint:pylint:
     paths:
       - reports/
     expire_in: 1 week
-    reports:
-      junit: reports/pylint-junit.xml
+    # reports:
+    #  junit: reports/pylint-junit.xml
   allow_failure: false  # Set to true if you don't want the pipeline to fail.
 
 # Alternative job with more settings
