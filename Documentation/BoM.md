@@ -52,6 +52,14 @@
   * Purpose: HTTP API server for log collector
   * CVE Tracking: Framework-specific security advisories
 
+
+* **pylint**
+  * Version: pylint 3.3.8
+  * Source: PyPI
+  * Purpose: Code syle reviwer 
+  * CVE Tracking: [Fsnyk security](https://security.snyk.io/package/pip/pylint)
+
+
 ## Container Infrastructure
 
 ### Container Runtime
