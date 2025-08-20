@@ -33,7 +33,7 @@ class DataProcessor:
         """
         if not data_source:
             raise ValueError("data_source cannot be empty")
-            
+
         self.data_source = data_source
         self.max_items = max_items
         self._processed_count = 0
@@ -55,26 +55,26 @@ class DataProcessor:
         if not os.path.exists(self.data_source):
             raise FileNotFoundError(
                 f"File not found: {self.data_source}")
-            
+
         processed_items = []
-        
+
         try:
             with open(self.data_source, 'r', encoding='utf-8') as file:
                 for line_number, line in enumerate(file, 1):
                     if line_number > self.max_items:
                         break
-                        
+
                     processed_line = line.strip()
-                    
+
                     if filter_empty and not processed_line:
                         continue
                         
                     processed_items.append(processed_line)
                     self._processed_count += 1
-                    
+
         except IOError as error:
             raise IOError(f"Error reading file: {error}") from error
-            
+
         return processed_items
 
     def get_processed_count(self) -> int:
@@ -86,7 +86,7 @@ class DataProcessor:
         return self._processed_count
 
     @staticmethod
-    
+
     def validate_file_extension(filename: str,
                                 allowed_extensions: Optional[List[str]] = None
                                 ) -> bool:
@@ -103,7 +103,7 @@ class DataProcessor:
         """
         if allowed_extensions is None:
             allowed_extensions = ['.txt', '.csv']
-            
+
         file_extension = os.path.splitext(filename)[1].lower()
         return file_extension in allowed_extensions
 
@@ -112,12 +112,12 @@ def main():
     """Main function to demonstrate processor usage."""
     # use case
     processor = DataProcessor("data.txt", max_items=50)
-    
+
     try:
         results = processor.process_data(filter_empty=True)
         print(f"Processed {len(results)} elements")
         print(f"Total processed elements: {processor.get_processed_count()}")
-        
+
     except (FileNotFoundError, IOError) as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
@@ -125,5 +125,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
