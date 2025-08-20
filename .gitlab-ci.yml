@@ -37,7 +37,7 @@ lint:pylint:
     - tail -n 20 reports/pylint-report.txt
     
     # Check for critical errors (optional)
-    - pylint src/ --fail-under=8.0 --output-format=text
+    - pylint src/ --fail-under=8.0 --output-format=text # <-- score minimum tu pass is 8.0 
   artifacts:
     when: always
     paths:
@@ -78,25 +78,6 @@ lint:pylint-detailed:
     when: always
     paths:
       - reports/pylint/
-    expire_in: 1 week
-  allow_failure: false
-
-# Job to genenerate HTML report using pylint-html
-lint:pylint-html:
-  stage: lint
-  image: python:3.9
-  tags:
-    - code-quality
-    - static-analysis
-  before_script:
-    - pip install pylint pylint-html
-  script:
-    - mkdir -p reports/html
-    - pylint src/ --ignore=bad_example.py --load-plugins=pylint_html --output-format=pylint_html.HTMLReporter > reports/html/pylint-report.html || true
-  artifacts:
-    when: always
-    paths:
-      - reports/html/
     expire_in: 1 week
   allow_failure: false
 
