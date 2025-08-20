@@ -68,7 +68,7 @@ class DataProcessor:
 
                     if filter_empty and not processed_line:
                         continue
-                        
+
                     processed_items.append(processed_line)
                     self._processed_count += 1
 
