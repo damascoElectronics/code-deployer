@@ -7,7 +7,6 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-html>=3.2.0
 pytest-json-report>=1.5.0
-pytest-xvs>=3.0.0
 coverage[toml]>=7.3.0
 
 # Code quality reports
