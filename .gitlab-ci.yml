@@ -68,13 +68,12 @@ lint:pylint:
 
 test:unit:
   stage: test
-  image: python:3.9
   before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
+    - python3 -m pip install --upgrade pip
+    - pip3 install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
+    - python3 -m pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
   artifacts:
     when: always
     paths:
@@ -86,13 +85,12 @@ test:unit:
 
 test:integration:
   stage: test
-  image: python:3.9
   before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
+    - python3 -m pip install --upgrade pip
+    - pip3 install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
+    - python3 -m pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
   artifacts:
     when: always
     paths:
