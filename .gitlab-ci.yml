@@ -2,11 +2,24 @@
 stages:
   - lint
   - test
+  - coverage
+  - quality-gate
   - build
+  - deploy
 
 # Global variables 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  COVERAGE_THRESHOLD: "80"
+  PYLINT_THRESHOLD: "8.0" # <-- score minimum tu pass is 8.0 for code Quality style
+  NC: '\033[0m' # No Color
+  # Regular Colors
+  RED: '\033[0;31m'        # Red
+  GREEN: '\033[0;32m'      # Green
+  # Bold High Intensity
+  BIGreen: '\033[1;92m'      # Green
+  BRed: '\033[1;31m'         # Red
+  BBlue: '\033[1;34m'        # blue
 
 # Cache to speed up builds
 cache:
@@ -14,7 +27,10 @@ cache:
     - .cache/pip/
     - venv/
 
-# Job for linting with pylint
+# ================================
+# STAGE: LINT
+# ================================
+
 lint:pylint:
   stage: lint
   image: python:3.9
@@ -27,7 +43,7 @@ lint:pylint:
     - rm -rf .pylint_cache || true
   script:
     # Run pylint and generate reports
-    - mkdir -p reports
+    - mkdir -p reports/pylint
     - pylint src/*.py --output-format=text --reports=y > reports/pylint-report.txt || true
     - pylint src/*.py --output-format=json > reports/pylint-report.json || true
     - pylint src/*.py --output-format=parseable > reports/pylint-parseable.txt || true    
@@ -35,13 +51,13 @@ lint:pylint:
     # Show summary in console
     - echo "=== PYLINT SUMMARY ==="
     - tail -n 20 reports/pylint-report.txt
-    
+  
     # Check for critical errors (optional)
-    - pylint src/ --fail-under=8.0 --output-format=text # <-- score minimum tu pass is 8.0 
+    - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
   artifacts:
     when: always
     paths:
-      - reports/
+      - reports/pylint
     expire_in: 1 week
   allow_failure: false  # Set to true if you don't want the pipeline to fail.
 
@@ -56,7 +72,7 @@ lint:pylint-detailed:
     - python -m pip install --upgrade pip
     - pip install -r requirements.txt
   script:
-    - mkdir -p reports/pylint
+    - mkdir -p reports/pylint-detailed
     
     # Analysis by modules
     - find src/ -name "*.py" ! -name "bad_example.py" -exec pylint {} --output-format=json \; > reports/pylint/individual-files.json || true
@@ -72,14 +88,216 @@ lint:pylint-detailed:
     
     # Check minimum score
     - PYLINT_SCORE=$(pylint src/ --ignore=bad_example.py --output-format=text | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
-    - echo "Pylint Score:$PYLINT_SCORE"
+    - echo -e $BBlue"Pylint Score:$PYLINT_SCORE"$NC
     - python -c "import sys; sys.exit(0 if float('$PYLINT_SCORE') >= 8.0 else 1)"
   artifacts:
     when: always
     paths:
-      - reports/pylint/
+      - reports/pylint-detailed/
     expire_in: 1 week
   allow_failure: false
+
+
+# ================================
+# STAGE: TEST
+# ================================
+
+test:unit:
+  stage: test
+  image: python:3.9
+  tags:
+    - testing
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/tests
+    - pytest tests/unit/ -m "unit" --verbose
+  artifacts:
+    when: always
+    paths:
+      - reports/tests/
+    reports:
+      junit: reports/tests/pytest-report.xml
+    expire_in: 1 week
+  allow_failure: false
+
+test:integration:
+  stage: test
+  image: python:3.9
+  tags:
+    - testing
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/tests
+    - pytest tests/integration/ -m "integration" --verbose
+  artifacts:
+    when: always
+    paths:
+      - reports/tests/
+    reports:
+      junit: reports/tests/pytest-report.xml
+    expire_in: 1 week
+  allow_failure: false
+
+
+# ================================
+# STAGE: COVERAGE
+# ================================
+
+coverage:full:
+  stage: coverage
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/coverage reports/tests
+    
+    # Ejecutar tests con coverage
+    - coverage run -m pytest tests/ --junitxml=reports/tests/junit.xml
+    
+    # Generar reportes de coverage
+    - coverage report --show-missing
+    - coverage html -d reports/coverage/html
+    - coverage xml -o reports/coverage/coverage.xml
+    - coverage json -o reports/coverage/coverage.json
+    
+    # Verificar umbral mínimo
+    - coverage report --fail-under=$COVERAGE_THRESHOLD
+    
+    # Extraer métricas para el dashboard
+    - |
+      COVERAGE_PERCENTAGE=$(coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+      echo "Coverage: $COVERAGE_PERCENTAGE%"
+      echo "COVERAGE_PERCENTAGE=$COVERAGE_PERCENTAGE" > coverage.env
+      
+      # Crear badge data
+      mkdir -p reports/badges
+      echo "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"$COVERAGE_PERCENTAGE%\", \"color\": \"$(if [ ${COVERAGE_PERCENTAGE%.*} -ge 80 ]; then echo 'brightgreen'; elif [ ${COVERAGE_PERCENTAGE%.*} -ge 60 ]; then echo 'yellow'; else echo 'red'; fi)\"}" > reports/badges/coverage.json
+      
+  artifacts:
+    when: always
+    paths:
+      - reports/coverage/
+      - reports/tests/
+      - reports/badges/
+    reports:
+      junit: reports/tests/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: reports/coverage/coverage.xml
+    expire_in: 1 week
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  allow_failure: false
+
+# Test de cobertura por módulos
+coverage:module-analysis:
+  stage: coverage
+  image: python:3.9
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/coverage/modules
+    
+    # Análisis por módulo
+    - |
+      for module in $(find src/ -name "*.py" | grep -v __pycache__ | sed 's|src/||' | sed 's|\.py$||' | tr '/' '.'); do
+        echo "Analyzing module: $module"
+        coverage run --source=src/$module.py -m pytest tests/ -k "$module" || true
+        coverage report --include="src/$module.py" > "reports/coverage/modules/$module.txt" || true
+      done
+    
+    # Generar reporte consolidado de módulos
+    - find reports/coverage/modules/ -name "*.txt" -exec cat {} \; > reports/coverage/modules-summary.txt
+    
+  artifacts:
+    when: always
+    paths:
+      - reports/coverage/modules/
+    expire_in: 1 week
+  allow_failure: true
+
+
+# ================================
+# STAGE: QUALITY GATE
+# ================================
+
+quality-gate:
+  stage: quality-gate
+  image: python:3.9
+  dependencies:
+    - lint:pylint
+    - coverage:full
+  script:
+    - |
+      echo "=== QUALITY GATE VALIDATION ==="
+      
+      # Verificar que existen los archivos de reporte
+      if [ ! -f "reports/coverage/coverage.json" ]; then
+        echo "ERROR: Coverage report not found"
+        exit 1
+      fi
+      
+      if [ ! -f "reports/pylint/pylint-report.json" ]; then
+        echo "ERROR: Pylint report not found"
+        exit 1
+      fi
+      
+      # Extraer métricas
+      COVERAGE=$(python -c "import json; data=json.load(open('reports/coverage/coverage.json')); print(data['totals']['percent_covered'])")
+      PYLINT_SCORE=$(cat reports/pylint/pylint-report.txt | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+      
+      echo "Coverage: $COVERAGE%"
+      echo "Pylint Score: $PYLINT_SCORE/10"
+      
+      # Validar umbrales
+      QUALITY_GATE_PASSED=true
+      
+      if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+        echo -e $BRed"Coverage below threshold: $COVERAGE% < $COVERAGE_THRESHOLD%"$NC
+        QUALITY_GATE_PASSED=false
+      else
+        echo -e $BIGreen"Coverage above threshold: $COVERAGE% >= $COVERAGE_THRESHOLD%"NC
+      fi
+      
+      if (( $(echo "$PYLINT_SCORE < $PYLINT_THRESHOLD" | bc -l) )); then
+        echo -e $BRed"Pylint score below threshold: $PYLINT_SCORE < $PYLINT_THRESHOLD"$NC
+        QUALITY_GATE_PASSED=false
+      else
+        echo -e $BIGreen"Pylint score above threshold: $PYLINT_SCORE >= $PYLINT_THRESHOLD"$NC
+      fi
+      
+      if [ "$QUALITY_GATE_PASSED" = false ]; then
+        echo -e $BRed"QUALITY GATE FAILED - Merge blocked"$NC
+        exit 1
+      else
+        echo -e $BIGreen"QUALITY GATE PASSED - Ready to merge"$NC
+      fi
+      
+      # Generar reporte de calidad
+      mkdir -p reports/quality-gate
+      cat > reports/quality-gate/summary.json << EOF
+      {
+        "coverage": $COVERAGE,
+        "pylint_score": $PYLINT_SCORE,
+        "coverage_threshold": $COVERAGE_THRESHOLD,
+        "pylint_threshold": $PYLINT_THRESHOLD,
+        "quality_gate_passed": $QUALITY_GATE_PASSED,
+        "timestamp": "$(date -Iseconds)"
+      }
+      EOF
+      
+  artifacts:
+    when: always
+    paths:
+      - reports/quality-gate/
+    expire_in: 1 week
+  allow_failure: false
+
 
 # To integrate reports into Merge Requests, you can use GitLab Page
 pages:
