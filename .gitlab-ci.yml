@@ -68,12 +68,15 @@ lint:pylint:
 
 test:unit:
   stage: test
+  image: python:3.9
+  tags:
+    - docker
   before_script:
-    - python3 -m pip install --upgrade pip
-    - pip3 install -r requirements.txt
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - python3 -m pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
+    - pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
   artifacts:
     when: always
     paths:
@@ -85,12 +88,15 @@ test:unit:
 
 test:integration:
   stage: test
+  image: python:3.9
+  tags:
+    - docker
   before_script:
-    - python3 -m pip install --upgrade pip
-    - pip3 install -r requirements.txt
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - python3 -m pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
+    - pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
   artifacts:
     when: always
     paths:
@@ -99,7 +105,6 @@ test:integration:
       junit: reports/tests/integration-junit.xml
     expire_in: 1 week
   allow_failure: false
-
 
 # ================================
 # STAGE: COVERAGE
