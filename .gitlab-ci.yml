@@ -61,42 +61,6 @@ lint:pylint:
     expire_in: 1 week
   allow_failure: false  # Set to true if you don't want the pipeline to fail.
 
-# Alternative job with more settings
-lint:pylint-detailed:
-  stage: lint
-  image: python:3.9
-  tags:
-    - code-quality
-    - static-analysis
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
-  script:
-    - mkdir -p reports/pylint-detailed
-    
-    # Analysis by modules
-    - find src/ -name "*.py" ! -name "bad_example.py" -exec pylint {} --output-format=json \; > reports/pylint/individual-files.json || true
-    
-    # Full report
-    - pylint src/ --ignore=bad_example.py --output-format=text --reports=y > reports/pylint/full-report.txt
-    
-    # Report only errors and warnings
-    - pylint src/ --ignore=bad_example.py --output-format=text --reports=y > reports/pylint/full-report.txt
-    
-    # Metrics and statistics
-    - pylint src/ --output-format=text --reports=y --msg-template='{path}:{line}:\ [{msg_id}({symbol}), {obj}] {msg}' > reports/pylint/detailed-report.txt
-    
-    # Check minimum score
-    - PYLINT_SCORE=$(pylint src/ --ignore=bad_example.py --output-format=text | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
-    - echo -e $BBlue"Pylint Score:$PYLINT_SCORE"$NC
-    - python -c "import sys; sys.exit(0 if float('$PYLINT_SCORE') >= 8.0 else 1)"
-  artifacts:
-    when: always
-    paths:
-      - reports/pylint-detailed/
-    expire_in: 1 week
-  allow_failure: false
-
 
 # ================================
 # STAGE: TEST
