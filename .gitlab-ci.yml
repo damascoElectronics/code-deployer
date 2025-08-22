@@ -74,33 +74,31 @@ test:unit:
     - pip install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - pytest tests/unit/ -m "unit" --verbose
+    - pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
   artifacts:
     when: always
     paths:
       - reports/tests/
     reports:
-      junit: reports/tests/pytest-report.xml
+      junit: reports/tests/unit-junit.xml
     expire_in: 1 week
   allow_failure: false
 
 test:integration:
   stage: test
   image: python:3.9
-  tags:
-    - testing
   before_script:
     - python -m pip install --upgrade pip
     - pip install -r requirements.txt
   script:
     - mkdir -p reports/tests
-    - pytest tests/integration/ -m "integration" --verbose
+    - pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
   artifacts:
     when: always
     paths:
       - reports/tests/
     reports:
-      junit: reports/tests/pytest-report.xml
+      junit: reports/tests/integration-junit.xml
     expire_in: 1 week
   allow_failure: false
 
