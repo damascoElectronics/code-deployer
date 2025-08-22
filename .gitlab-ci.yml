@@ -69,8 +69,7 @@ lint:pylint:
 test:unit:
   stage: test
   image: python:3.9
-  tags:
-    - docker
+
   before_script:
     - python -m pip install --upgrade pip
     - pip install -r requirements.txt
@@ -89,8 +88,7 @@ test:unit:
 test:integration:
   stage: test
   image: python:3.9
-  tags:
-    - docker
+
   before_script:
     - python -m pip install --upgrade pip
     - pip install -r requirements.txt
