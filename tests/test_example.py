@@ -1,228 +1,260 @@
-"""Main tests for the example module.
+"""Main tests for the NetworkParser class.
 
-This module contains general tests for the DataProcessor class,
-mixing both unit and integration style tests.
+This module contains general tests for NetworkParser functionality.
 """
 
-import os
-import tempfile
+import json
 import pytest
-from unittest.mock import patch, mock_open
-from src.example import DataProcessor
+from unittest.mock import patch, MagicMock
+from src.example import NetworkParser
 
 
-class TestDataProcessor:
-    """Test suite for DataProcessor class."""
+class TestNetworkParser:
+    """General test suite for NetworkParser class."""
 
-    def setup_method(self):
-        """Set up test fixtures before each test method."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.test_file = os.path.join(self.temp_dir, "test_data.txt")
-        
-        # Create a test file
-        with open(self.test_file, 'w', encoding='utf-8') as f:
-            f.write("line1\n")
-            f.write("line2\n")
-            f.write("\n")  # Empty line
-            f.write("line4\n")
+    def test_initialization_basic(self):
+        """Test basic NetworkParser initialization."""
+        parser = NetworkParser()
+        assert parser is not None
+        assert parser.timeout == 30
+        assert parser.base_url == ""
 
-    def teardown_method(self):
-        """Clean up after each test method."""
-        if os.path.exists(self.test_file):
-            os.remove(self.test_file)
-        os.rmdir(self.temp_dir)
+    def test_initialization_with_parameters(self):
+        """Test NetworkParser initialization with parameters."""
+        parser = NetworkParser("https://api.test.com", timeout=15)
+        assert parser.base_url == "https://api.test.com"
+        assert parser.timeout == 15
 
-    def test_init_valid_parameters(self):
-        """Test DataProcessor initialization with valid parameters."""
-        processor = DataProcessor("test.txt", max_items=50)
+    def test_json_parsing_success(self):
+        """Test successful JSON parsing."""
+        parser = NetworkParser()
+        json_data = '{"name": "test", "value": 123}'
         
-        assert processor.data_source == "test.txt"
-        assert processor.max_items == 50
-        assert processor._processed_count == 0
+        result = parser.parse_json_response(json_data)
+        
+        assert result["name"] == "test"
+        assert result["value"] == 123
 
-    def test_init_default_max_items(self):
-        """Test DataProcessor initialization with default max_items."""
-        processor = DataProcessor("test.txt")
+    def test_email_extraction_basic(self):
+        """Test basic email extraction."""
+        parser = NetworkParser()
+        text = "Send email to contact@example.com for support"
         
-        assert processor.data_source == "test.txt"
-        assert processor.max_items == 100
+        emails = parser.extract_emails(text)
+        
+        assert len(emails) == 1
+        assert "contact@example.com" in emails
 
-    def test_init_empty_data_source(self):
-        """Test DataProcessor initialization with empty data_source raises ValueError."""
-        with pytest.raises(ValueError, match="data_source cannot be empty"):
-            DataProcessor("")
+    def test_url_extraction_basic(self):
+        """Test basic URL extraction."""
+        parser = NetworkParser()
+        text = "Visit our website at https://www.example.com"
+        
+        urls = parser.extract_urls(text)
+        
+        assert len(urls) == 1
+        assert "https://www.example.com" in urls
 
-    def test_get_processed_count_initial(self):
-        """Test get_processed_count returns 0 initially."""
-        processor = DataProcessor("test.txt")
-        assert processor.get_processed_count() == 0
+    def test_key_value_parsing_basic(self):
+        """Test basic key-value parsing."""
+        parser = NetworkParser()
+        text = "name=John\nage=30"
+        
+        result = parser.parse_key_value_pairs(text)
+        
+        assert result["name"] == "John"
+        assert result["age"] == "30"
 
-    def test_process_data_file_exists(self):
-        """Test process_data with an existing file."""
-        processor = DataProcessor(self.test_file, max_items=10)
+    def test_text_filtering_basic(self):
+        """Test basic text filtering."""
+        parser = NetworkParser()
+        text = "INFO: Starting\nERROR: Failed\nINFO: Running"
         
-        result = processor.process_data(filter_empty=True)
+        errors = parser.filter_lines_by_pattern(text, "ERROR")
         
-        assert len(result) == 3  # line1, line2, line4 (empty line filtered)
-        assert result == ["line1", "line2", "line4"]
-        assert processor.get_processed_count() == 3
+        assert len(errors) == 1
+        assert "ERROR: Failed" in errors
 
-    def test_process_data_without_filter_empty(self):
-        """Test process_data without filtering empty lines."""
-        processor = DataProcessor(self.test_file, max_items=10)
-        
-        result = processor.process_data(filter_empty=False)
-        
-        assert len(result) == 4  # All lines including empty
-        assert result == ["line1", "line2", "", "line4"]
-        assert processor.get_processed_count() == 4
+    def test_url_validation_static_method(self):
+        """Test URL validation static method."""
+        assert NetworkParser.validate_url("https://example.com") is True
+        assert NetworkParser.validate_url("http://test.org") is True
+        assert NetworkParser.validate_url("invalid-url") is False
+        assert NetworkParser.validate_url("") is False
 
-    def test_process_data_max_items_limit(self):
-        """Test process_data respects max_items limit."""
-        processor = DataProcessor(self.test_file, max_items=2)
+    def test_text_cleaning_static_method(self):
+        """Test text cleaning static method."""
+        dirty_text = "  hello   world  "
+        clean_text = NetworkParser.clean_text(dirty_text)
         
-        result = processor.process_data(filter_empty=True)
-        
-        assert len(result) == 2  # Limited by max_items
-        assert result == ["line1", "line2"]
-        assert processor.get_processed_count() == 2
+        assert clean_text == "hello world"
 
-    def test_process_data_file_not_found(self):
-        """Test process_data raises FileNotFoundError for non-existent file."""
-        processor = DataProcessor("non_existent_file.txt")
+    def test_response_stats_basic(self):
+        """Test response statistics."""
+        parser = NetworkParser()
+        text = "hello world\nsecond line"
         
-        with pytest.raises(FileNotFoundError, match="File not found: non_existent_file.txt"):
-            processor.process_data()
+        stats = parser.get_response_stats(text)
+        
+        assert stats["words"] == 4
+        assert stats["lines"] == 2
+        assert stats["chars"] > 10
 
-    @patch("builtins.open", mock_open())
-    @patch("os.path.exists", return_value=True)
-    def test_process_data_io_error(self, mock_exists):
-        """Test process_data handles IOError properly."""
-        # Configure mock to raise IOError
-        with patch("builtins.open", side_effect=IOError("Mocked IO error")):
-            processor = DataProcessor("test.txt")
-            
-            with pytest.raises(IOError, match="Error reading file: Mocked IO error"):
-                processor.process_data()
+    @patch('urllib.request.urlopen')
+    def test_make_request_mocked(self, mock_urlopen):
+        """Test make_request with mocked HTTP call."""
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"status": "ok"}'
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=None)
+        mock_urlopen.return_value = mock_response
+        
+        parser = NetworkParser("https://api.example.com")
+        result = parser.make_request("test")
+        
+        assert result == '{"status": "ok"}'
+        mock_urlopen.assert_called_once()
 
-    @pytest.mark.parametrize("filename,extensions,expected", [
-        ("test.txt", None, True),
-        ("test.csv", None, True),
-        ("test.pdf", None, False),
-        ("test.TXT", None, True),  # Case insensitive
-        ("test.json", [".json", ".xml"], True),
-        ("test.txt", [".json", ".xml"], False),
-        ("file_without_extension", None, False),
-    ])
-    def test_validate_file_extension(self, filename, extensions, expected):
-        """Test validate_file_extension with various inputs."""
-        result = DataProcessor.validate_file_extension(filename, extensions)
-        assert result == expected
+    def test_error_handling_json(self):
+        """Test error handling for invalid JSON."""
+        parser = NetworkParser()
+        
+        with pytest.raises(json.JSONDecodeError):
+            parser.parse_json_response("invalid json")
 
-    def test_validate_file_extension_default_extensions(self):
-        """Test validate_file_extension uses default extensions when None provided."""
-        assert DataProcessor.validate_file_extension("test.txt") is True
-        assert DataProcessor.validate_file_extension("test.csv") is True
-        assert DataProcessor.validate_file_extension("test.pdf") is False
+    def test_error_handling_empty_endpoint(self):
+        """Test error handling for empty endpoint."""
+        parser = NetworkParser()
+        
+        with pytest.raises(ValueError, match="Endpoint cannot be empty"):
+            parser.make_request("")
 
-    def test_multiple_process_data_calls(self):
-        """Test multiple calls to process_data accumulate processed_count."""
-        processor = DataProcessor(self.test_file, max_items=2)
-        
-        # First call
-        result1 = processor.process_data(filter_empty=True)
-        assert len(result1) == 2
-        assert processor.get_processed_count() == 2
-        
-        # Second call should continue counting
-        result2 = processor.process_data(filter_empty=True)
-        assert len(result2) == 2
-        assert processor.get_processed_count() == 4  # Accumulated
+    def test_error_handling_negative_timeout(self):
+        """Test error handling for negative timeout."""
+        with pytest.raises(ValueError, match="Timeout must be non-negative"):
+            NetworkParser(timeout=-1)
 
-    def test_empty_file_processing(self):
-        """Test processing an empty file."""
-        empty_file = os.path.join(self.temp_dir, "empty.txt")
-        with open(empty_file, 'w', encoding='utf-8') as f:
-            pass  # Create empty file
+    def test_error_handling_empty_delimiter(self):
+        """Test error handling for empty delimiter."""
+        parser = NetworkParser()
         
-        processor = DataProcessor(empty_file)
-        result = processor.process_data()
-        
-        assert result == []
-        assert processor.get_processed_count() == 0
-        
-        os.remove(empty_file)
+        with pytest.raises(ValueError, match="Delimiter cannot be empty"):
+            parser.parse_key_value_pairs("test", delimiter="")
 
-    def test_large_file_processing(self):
-        """Test processing a file with many lines."""
-        large_file = os.path.join(self.temp_dir, "large.txt")
-        with open(large_file, 'w', encoding='utf-8') as f:
-            for i in range(200):
-                f.write(f"line{i}\n")
+    def test_complex_email_extraction(self):
+        """Test email extraction with complex patterns."""
+        parser = NetworkParser()
+        text = """
+        Contact information:
+        - Primary: admin@company.com
+        - Secondary: support+help@example.org
+        - Sales: sales@new-domain.co.uk
+        """
         
-        processor = DataProcessor(large_file, max_items=150)
-        result = processor.process_data()
+        emails = parser.extract_emails(text)
         
-        assert len(result) == 150  # Limited by max_items
-        assert processor.get_processed_count() == 150
-        
-        os.remove(large_file)
+        assert len(emails) >= 3
+        assert "admin@company.com" in emails
+        assert "support+help@example.org" in emails
+        assert "sales@new-domain.co.uk" in emails
 
-    def test_file_with_special_characters(self):
-        """Test processing file with basic special characters."""
-        special_file = os.path.join(self.temp_dir, "special.txt")
-        with open(special_file, 'w', encoding='utf-8') as f:
-            f.write("line with symbols: @#$%\n")
-            f.write("line with numbers: 12345\n")
-            f.write("line with punctuation: .,;:!?\n")
+    def test_complex_url_extraction(self):
+        """Test URL extraction with various formats."""
+        parser = NetworkParser()
+        text = """
+        Resources:
+        - Documentation: https://docs.example.com/api
+        - Website: http://www.example.com
+        - Help: www.help.example.org
+        """
         
-        processor = DataProcessor(special_file)
-        result = processor.process_data()
+        urls = parser.extract_urls(text)
         
-        assert len(result) == 3
-        assert "line with symbols: @#$%" in result
-        assert "line with numbers: 12345" in result
-        assert "line with punctuation: .,;:!?" in result
+        assert len(urls) >= 3
+        valid_urls = [url for url in urls if "example" in url]
+        assert len(valid_urls) >= 3
+
+    def test_end_to_end_workflow(self):
+        """Test end-to-end workflow with realistic data."""
+        parser = NetworkParser()
         
-        os.remove(special_file)
+        # Simulate processing a configuration response
+        config_response = """{
+            "api_settings": {
+                "endpoints": "https://api.service.com, https://backup.service.com",
+                "contact": "admin@service.com",
+                "timeout": "30"
+            },
+            "raw_config": "debug=true\\nverbose=false"
+        }"""
+        
+        # Parse JSON
+        data = parser.parse_json_response(config_response)
+        
+        # Extract information
+        endpoints_text = data["api_settings"]["endpoints"]
+        contact_text = data["api_settings"]["contact"]
+        raw_config = data["raw_config"].replace("\\n", "\n")
+        
+        # Process extracted data
+        urls = parser.extract_urls(endpoints_text)
+        emails = parser.extract_emails(contact_text)
+        config = parser.parse_key_value_pairs(raw_config)
+        
+        # Verify end-to-end processing
+        assert len(urls) >= 2
+        assert len(emails) >= 1
+        assert "admin@service.com" in emails
+        assert config["debug"] == "true"
+        assert config["verbose"] == "false"
+        assert any("api.service.com" in url for url in urls)
 
 
-# Fixture examples
+# Fixtures for reuse across tests
 @pytest.fixture
-def sample_processor():
-    """Fixture that provides a DataProcessor instance for testing."""
-    return DataProcessor("sample.txt", max_items=10)
+def sample_parser():
+    """Fixture providing a NetworkParser instance."""
+    return NetworkParser("https://api.example.com", timeout=10)
 
 
 @pytest.fixture
-def temp_file_with_data():
-    """Fixture that provides a temporary file with test data."""
-    temp_dir = tempfile.mkdtemp()
-    temp_file = os.path.join(temp_dir, "fixture_test.txt")
-    
-    with open(temp_file, 'w', encoding='utf-8') as f:
-        f.write("fixture line 1\n")
-        f.write("fixture line 2\n")
-        f.write("fixture line 3\n")
-    
-    yield temp_file
-    
-    # Cleanup
-    os.remove(temp_file)
-    os.rmdir(temp_dir)
+def sample_json_response():
+    """Fixture providing sample JSON response."""
+    return '{"users": [{"name": "John", "email": "john@example.com"}], "total": 1}'
 
 
-def test_with_sample_processor_fixture(sample_processor):
-    """Test using the sample_processor fixture."""
-    assert sample_processor.data_source == "sample.txt"
-    assert sample_processor.max_items == 10
-    assert sample_processor.get_processed_count() == 0
+@pytest.fixture 
+def sample_mixed_content():
+    """Fixture providing mixed content for parsing."""
+    return """
+    Welcome! Contact us at support@company.com
+    Visit https://www.company.com for more info
+    Configuration:
+    api_key=abc123
+    timeout=60
+    """
 
 
-def test_with_temp_file_fixture(temp_file_with_data):
-    """Test using the temp_file_with_data fixture."""
-    processor = DataProcessor(temp_file_with_data)
-    result = processor.process_data()
+def test_with_sample_parser(sample_parser):
+    """Test using sample parser fixture."""
+    assert sample_parser.base_url == "https://api.example.com"
+    assert sample_parser.timeout == 10
+
+
+def test_with_sample_json(sample_parser, sample_json_response):
+    """Test using JSON fixture."""
+    result = sample_parser.parse_json_response(sample_json_response)
     
-    assert len(result) == 3
-    assert all("fixture line" in line for line in result)
+    assert result["total"] == 1
+    assert len(result["users"]) == 1
+    assert result["users"][0]["name"] == "John"
+
+
+def test_with_mixed_content(sample_parser, sample_mixed_content):
+    """Test using mixed content fixture."""
+    emails = sample_parser.extract_emails(sample_mixed_content)
+    urls = sample_parser.extract_urls(sample_mixed_content)
+    
+    assert "support@company.com" in emails
+    assert any("company.com" in url for url in urls)

@@ -1,280 +1,326 @@
-
-"""Unit tests for the DataProcessor class.
+"""Unit tests for the NetworkParser class.
 
 This module contains isolated unit tests that test individual methods
-of the DataProcessor class without external dependencies.
+of the NetworkParser class without external dependencies.
 """
 
+import json
+import re
+import urllib.error
 import pytest
 from unittest.mock import patch, mock_open, MagicMock
-from src.example import DataProcessor
+from src.example import NetworkParser
 
 
-class TestDataProcessorUnit:
-    """Unit tests for DataProcessor class focusing on isolated functionality."""
+class TestNetworkParserUnit:
+    """Unit tests for NetworkParser class focusing on isolated functionality."""
 
     @pytest.mark.unit
     def test_init_with_valid_parameters(self):
         """Test initialization with valid parameters."""
-        processor = DataProcessor("test.txt", max_items=50)
+        parser = NetworkParser("https://api.example.com", timeout=10)
         
-        assert processor.data_source == "test.txt"
-        assert processor.max_items == 50
-        assert processor._processed_count == 0
+        assert parser.base_url == "https://api.example.com"
+        assert parser.timeout == 10
+        assert "User-Agent" in parser.headers
 
     @pytest.mark.unit
-    def test_init_with_default_max_items(self):
-        """Test initialization with default max_items parameter."""
-        processor = DataProcessor("test.txt")
+    def test_init_with_default_parameters(self):
+        """Test initialization with default parameters."""
+        parser = NetworkParser()
         
-        assert processor.data_source == "test.txt"
-        assert processor.max_items == 100
-        assert processor._processed_count == 0
+        assert parser.base_url == ""
+        assert parser.timeout == 30
+        assert isinstance(parser.headers, dict)
 
     @pytest.mark.unit
-    def test_init_empty_data_source_raises_value_error(self):
-        """Test that empty data_source raises ValueError."""
-        with pytest.raises(ValueError, match="data_source cannot be empty"):
-            DataProcessor("")
+    def test_init_strips_trailing_slash(self):
+        """Test that trailing slash is removed from base_url."""
+        parser = NetworkParser("https://api.example.com/")
+        assert parser.base_url == "https://api.example.com"
 
     @pytest.mark.unit
-    def test_init_none_data_source_raises_value_error(self):
-        """Test that None data_source raises ValueError."""
-        with pytest.raises(ValueError, match="data_source cannot be empty"):
-            DataProcessor(None)
+    def test_init_negative_timeout_raises_error(self):
+        """Test that negative timeout raises ValueError."""
+        with pytest.raises(ValueError, match="Timeout must be non-negative"):
+            NetworkParser(timeout=-1)
 
     @pytest.mark.unit
-    def test_get_processed_count_initial_state(self):
-        """Test get_processed_count returns 0 in initial state."""
-        processor = DataProcessor("test.txt")
-        assert processor.get_processed_count() == 0
+    def test_parse_json_response_valid_json(self):
+        """Test parsing valid JSON response."""
+        parser = NetworkParser()
+        json_string = '{"key": "value", "number": 42}'
+        
+        result = parser.parse_json_response(json_string)
+        
+        assert result == {"key": "value", "number": 42}
 
     @pytest.mark.unit
-    def test_get_processed_count_after_manual_increment(self):
-        """Test get_processed_count after manually incrementing counter."""
-        processor = DataProcessor("test.txt")
-        processor._processed_count = 5
-        assert processor.get_processed_count() == 5
+    def test_parse_json_response_empty_string(self):
+        """Test that empty string raises ValueError."""
+        parser = NetworkParser()
+        
+        with pytest.raises(ValueError, match="Response cannot be empty"):
+            parser.parse_json_response("")
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=False)
-    def test_process_data_file_not_found(self, mock_exists):
-        """Test process_data raises FileNotFoundError when file doesn't exist."""
-        processor = DataProcessor("nonexistent.txt")
+    def test_parse_json_response_invalid_json(self):
+        """Test that invalid JSON raises JSONDecodeError."""
+        parser = NetworkParser()
         
-        with pytest.raises(FileNotFoundError, match="File not found: nonexistent.txt"):
-            processor.process_data()
-        
-        mock_exists.assert_called_once_with("nonexistent.txt")
+        with pytest.raises(json.JSONDecodeError):
+            parser.parse_json_response("invalid json")
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", side_effect=IOError("Permission denied"))
-    def test_process_data_io_error(self, mock_open_func, mock_exists):
-        """Test process_data handles IOError properly."""
-        processor = DataProcessor("test.txt")
+    def test_extract_emails_valid_emails(self):
+        """Test extracting valid email addresses."""
+        parser = NetworkParser()
+        text = "Contact us at support@example.com or admin@test.org"
         
-        with pytest.raises(IOError, match="Error reading file: Permission denied"):
-            processor.process_data()
+        emails = parser.extract_emails(text)
+        
+        assert len(emails) == 2
+        assert "support@example.com" in emails
+        assert "admin@test.org" in emails
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="line1\nline2\nline3\n"))
-    def test_process_data_basic_functionality(self, mock_exists):
-        """Test basic process_data functionality with mocked file."""
-        processor = DataProcessor("test.txt", max_items=10)
+    def test_extract_emails_no_emails(self):
+        """Test extracting from text with no emails."""
+        parser = NetworkParser()
+        text = "No emails in this text"
         
-        result = processor.process_data(filter_empty=True)
+        emails = parser.extract_emails(text)
         
-        assert result == ["line1", "line2", "line3"]
-        assert processor.get_processed_count() == 3
+        assert emails == []
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="line1\n\nline3\n"))
-    def test_process_data_filter_empty_true(self, mock_exists):
-        """Test process_data with filter_empty=True removes empty lines."""
-        processor = DataProcessor("test.txt")
+    def test_extract_emails_empty_string(self):
+        """Test extracting from empty string."""
+        parser = NetworkParser()
         
-        result = processor.process_data(filter_empty=True)
+        emails = parser.extract_emails("")
         
-        assert result == ["line1", "line3"]
-        assert processor.get_processed_count() == 2
+        assert emails == []
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="line1\n\nline3\n"))
-    def test_process_data_filter_empty_false(self, mock_exists):
-        """Test process_data with filter_empty=False keeps empty lines."""
-        processor = DataProcessor("test.txt")
+    def test_extract_emails_duplicates_removed(self):
+        """Test that duplicate emails are removed."""
+        parser = NetworkParser()
+        text = "Email test@example.com and test@example.com again"
         
-        result = processor.process_data(filter_empty=False)
+        emails = parser.extract_emails(text)
         
-        assert result == ["line1", "", "line3"]
-        assert processor.get_processed_count() == 3
+        assert len(emails) == 1
+        assert "test@example.com" in emails
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="line1\nline2\nline3\nline4\nline5\n"))
-    def test_process_data_respects_max_items(self, mock_exists):
-        """Test process_data respects max_items limit."""
-        processor = DataProcessor("test.txt", max_items=3)
+    def test_extract_urls_valid_urls(self):
+        """Test extracting valid URLs."""
+        parser = NetworkParser()
+        text = "Visit https://www.example.com or http://test.com"
         
-        result = processor.process_data()
+        urls = parser.extract_urls(text)
         
-        assert len(result) == 3
-        assert result == ["line1", "line2", "line3"]
-        assert processor.get_processed_count() == 3
+        assert len(urls) == 2
+        assert "https://www.example.com" in urls
+        assert "http://test.com" in urls
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data=""))
-    def test_process_data_empty_file(self, mock_exists):
-        """Test process_data with empty file."""
-        processor = DataProcessor("empty.txt")
+    def test_extract_urls_with_www(self):
+        """Test extracting URLs with www prefix."""
+        parser = NetworkParser()
+        text = "Check www.example.com for more info"
         
-        result = processor.process_data()
+        urls = parser.extract_urls(text)
+        
+        assert len(urls) == 1
+        assert "www.example.com" in urls
+
+    @pytest.mark.unit
+    def test_extract_urls_empty_string(self):
+        """Test extracting URLs from empty string."""
+        parser = NetworkParser()
+        
+        urls = parser.extract_urls("")
+        
+        assert urls == []
+
+    @pytest.mark.unit
+    def test_parse_key_value_pairs_basic(self):
+        """Test parsing basic key-value pairs."""
+        parser = NetworkParser()
+        text = "key1=value1\nkey2=value2"
+        
+        result = parser.parse_key_value_pairs(text)
+        
+        assert result == {"key1": "value1", "key2": "value2"}
+
+    @pytest.mark.unit
+    def test_parse_key_value_pairs_custom_delimiter(self):
+        """Test parsing with custom delimiter."""
+        parser = NetworkParser()
+        text = "key1:value1\nkey2:value2"
+        
+        result = parser.parse_key_value_pairs(text, delimiter=":")
+        
+        assert result == {"key1": "value1", "key2": "value2"}
+
+    @pytest.mark.unit
+    def test_parse_key_value_pairs_empty_delimiter(self):
+        """Test that empty delimiter raises ValueError."""
+        parser = NetworkParser()
+        
+        with pytest.raises(ValueError, match="Delimiter cannot be empty"):
+            parser.parse_key_value_pairs("key=value", delimiter="")
+
+    @pytest.mark.unit
+    def test_parse_key_value_pairs_empty_text(self):
+        """Test parsing empty text returns empty dict."""
+        parser = NetworkParser()
+        
+        result = parser.parse_key_value_pairs("")
+        
+        assert result == {}
+
+    @pytest.mark.unit
+    def test_parse_key_value_pairs_whitespace_handling(self):
+        """Test that whitespace is properly handled."""
+        parser = NetworkParser()
+        text = " key1 = value1 \n key2 = value2 "
+        
+        result = parser.parse_key_value_pairs(text)
+        
+        assert result == {"key1": "value1", "key2": "value2"}
+
+    @pytest.mark.unit
+    def test_filter_lines_by_pattern_basic(self):
+        """Test filtering lines by regex pattern."""
+        parser = NetworkParser()
+        text = "line1\nerror: something\nline3\nerror: other"
+        
+        result = parser.filter_lines_by_pattern(text, r"error:")
+        
+        assert len(result) == 2
+        assert "error: something" in result
+        assert "error: other" in result
+
+    @pytest.mark.unit
+    def test_filter_lines_by_pattern_invalid_regex(self):
+        """Test that invalid regex raises re.error."""
+        parser = NetworkParser()
+        
+        with pytest.raises(re.error):
+            parser.filter_lines_by_pattern("text", "[invalid")
+
+    @pytest.mark.unit
+    def test_filter_lines_by_pattern_empty_text(self):
+        """Test filtering empty text returns empty list."""
+        parser = NetworkParser()
+        
+        result = parser.filter_lines_by_pattern("", r"pattern")
         
         assert result == []
-        assert processor.get_processed_count() == 0
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="line1\nline2\n"))
-    def test_process_data_accumulates_count(self, mock_exists):
-        """Test that multiple calls to process_data accumulate the count."""
-        processor = DataProcessor("test.txt")
-        
-        # First call
-        result1 = processor.process_data()
-        assert processor.get_processed_count() == 2
-        
-        # Second call should add to the count
-        result2 = processor.process_data()
-        assert processor.get_processed_count() == 4
+    def test_validate_url_valid_urls(self):
+        """Test URL validation with valid URLs."""
+        assert NetworkParser.validate_url("https://www.example.com") is True
+        assert NetworkParser.validate_url("http://test.org") is True
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("filename,extensions,expected", [
-        ("test.txt", None, True),
-        ("test.csv", None, True),
-        ("test.TXT", None, True),  # Case insensitive
-        ("test.PDF", None, False),
-        ("test.json", [".json", ".xml"], True),
-        ("test.txt", [".json", ".xml"], False),
-        ("no_extension", None, False),
-        ("file.with.multiple.dots.txt", None, True),
-        ("", None, False),
-    ])
-    def test_validate_file_extension_parametrized(self, filename, extensions, expected):
-        """Test validate_file_extension with various parameter combinations."""
-        result = DataProcessor.validate_file_extension(filename, extensions)
-        assert result == expected
+    def test_validate_url_invalid_urls(self):
+        """Test URL validation with invalid URLs."""
+        assert NetworkParser.validate_url("not-a-url") is False
+        assert NetworkParser.validate_url("") is False
+        assert NetworkParser.validate_url("ftp://example.com") is False
 
     @pytest.mark.unit
-    def test_validate_file_extension_with_none_extensions(self):
-        """Test validate_file_extension when extensions parameter is None."""
-        # Should use default extensions ['.txt', '.csv']
-        assert DataProcessor.validate_file_extension("test.txt", None) is True
-        assert DataProcessor.validate_file_extension("test.csv", None) is True
-        assert DataProcessor.validate_file_extension("test.pdf", None) is False
+    def test_clean_text_basic(self):
+        """Test basic text cleaning."""
+        result = NetworkParser.clean_text("  hello   world  ")
+        
+        assert result == "hello world"
 
     @pytest.mark.unit
-    def test_validate_file_extension_with_empty_list(self):
-        """Test validate_file_extension with empty extensions list."""
-        result = DataProcessor.validate_file_extension("test.txt", [])
-        assert result is False
+    def test_clean_text_empty_string(self):
+        """Test cleaning empty string."""
+        result = NetworkParser.clean_text("")
+        
+        assert result == ""
 
     @pytest.mark.unit
-    def test_validate_file_extension_case_sensitivity(self):
-        """Test that file extension validation is case insensitive."""
-        extensions = [".TXT", ".CSV"]
+    def test_clean_text_special_characters(self):
+        """Test cleaning text with special characters."""
+        text = "hello\t\tworld\n\ntest"
+        result = NetworkParser.clean_text(text)
         
-        assert DataProcessor.validate_file_extension("test.txt", extensions) is True
-        assert DataProcessor.validate_file_extension("test.TXT", extensions) is True
-        assert DataProcessor.validate_file_extension("test.csv", extensions) is True
-        assert DataProcessor.validate_file_extension("test.CSV", extensions) is True
+        # Should preserve newlines and tabs but normalize other whitespace
+        assert "hello" in result
+        assert "world" in result
+        assert "test" in result
 
     @pytest.mark.unit
-    def test_data_processor_properties_immutable(self):
-        """Test that DataProcessor properties are set correctly and don't change unexpectedly."""
-        original_source = "original.txt"
-        original_max = 42
+    def test_get_response_stats_basic(self):
+        """Test getting response statistics."""
+        parser = NetworkParser()
+        response = "hello world\nline two"
         
-        processor = DataProcessor(original_source, original_max)
+        stats = parser.get_response_stats(response)
         
-        # Properties should remain unchanged
-        assert processor.data_source == original_source
-        assert processor.max_items == original_max
-        
-        # Even after accessing them multiple times
-        _ = processor.data_source
-        _ = processor.max_items
-        
-        assert processor.data_source == original_source
-        assert processor.max_items == original_max
+        assert stats["chars"] > 0
+        assert stats["words"] == 4
+        assert stats["lines"] == 2
 
     @pytest.mark.unit
-    def test_private_processed_count_encapsulation(self):
-        """Test that _processed_count is properly encapsulated."""
-        processor = DataProcessor("test.txt")
+    def test_get_response_stats_empty_response(self):
+        """Test getting stats for empty response."""
+        parser = NetworkParser()
         
-        # Should only be accessible through getter method
-        assert hasattr(processor, '_processed_count')
-        assert processor.get_processed_count() == 0
+        stats = parser.get_response_stats("")
         
-        # Direct manipulation for testing purposes
-        processor._processed_count = 10
-        assert processor.get_processed_count() == 10
+        assert stats == {"chars": 0, "words": 0, "lines": 0}
 
     @pytest.mark.unit
-    def test_static_method_independence(self):
-        """Test that static method validate_file_extension works independently."""
-        # Should work without creating an instance
-        result = DataProcessor.validate_file_extension("test.txt")
-        assert result is True
+    def test_make_request_empty_endpoint(self):
+        """Test that empty endpoint raises ValueError."""
+        parser = NetworkParser()
         
-        # Should work the same way through an instance
-        processor = DataProcessor("dummy.txt")
-        instance_result = processor.validate_file_extension("test.txt")
-        assert instance_result is True
-        assert result == instance_result
+        with pytest.raises(ValueError, match="Endpoint cannot be empty"):
+            parser.make_request("")
 
     @pytest.mark.unit
-    @patch("os.path.exists", return_value=True)
-    def test_process_data_file_encoding_handling(self, mock_exists):
-        """Test that process_data handles file encoding properly."""
-        # Mock file with simple ASCII content
-        ascii_content = "line1\nline2\nline3\n"
+    @patch('urllib.request.urlopen')
+    def test_make_request_basic(self, mock_urlopen):
+        """Test basic request functionality with mocking."""
+        # Mock the response
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"status": "ok"}'
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=None)
+        mock_urlopen.return_value = mock_response
         
-        with patch("builtins.open", mock_open(read_data=ascii_content)):
-            processor = DataProcessor("ascii_test.txt")
-            result = processor.process_data()
-            
-            assert "line1" in result
-            assert "line2" in result
-            assert "line3" in result
+        parser = NetworkParser("https://api.example.com")
+        result = parser.make_request("status")
+        
+        assert result == '{"status": "ok"}'
+        mock_urlopen.assert_called_once()
 
-    @pytest.mark.unit
-    def test_edge_case_zero_max_items(self):
-        """Test behavior when max_items is set to 0."""
-        processor = DataProcessor("test.txt", max_items=0)
+    @pytest.mark.unit 
+    @patch('urllib.request.urlopen')
+    def test_make_request_with_params(self, mock_urlopen):
+        """Test request with query parameters."""
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'response'
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=None)
+        mock_urlopen.return_value = mock_response
         
-        with patch("os.path.exists", return_value=True):
-            with patch("builtins.open", mock_open(read_data="line1\nline2\n")):
-                result = processor.process_data()
-                
-                assert result == []
-                assert processor.get_processed_count() == 0
-
-    @pytest.mark.unit
-    def test_edge_case_negative_max_items(self):
-        """Test behavior when max_items is negative."""
-        processor = DataProcessor("test.txt", max_items=-5)
+        parser = NetworkParser("https://api.example.com")
+        parser.make_request("search", {"q": "test", "limit": "10"})
         
-        with patch("os.path.exists", return_value=True):
-            with patch("builtins.open", mock_open(read_data="line1\nline2\n")):
-                result = processor.process_data()
-                
-                # Should process no items when max_items is negative
-                assert result == []
-                assert processor.get_processed_count() == 0
+        # Verify urlopen was called with the right URL structure
+        mock_urlopen.assert_called_once()
+        call_args = mock_urlopen.call_args[0][0]
+        assert "search" in call_args.full_url
+        assert "q=test" in call_args.full_url
+        assert "limit=10" in call_args.full_url
