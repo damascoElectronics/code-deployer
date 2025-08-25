@@ -44,13 +44,13 @@ lint:pylint:
   script:
     # Run pylint and generate reports
     - mkdir -p reports/pylint
-    - pylint src/*.py --output-format=text --reports=y > reports/pylint-report.txt || true
-    - pylint src/*.py --output-format=json > reports/pylint-report.json || true
-    - pylint src/*.py --output-format=parseable > reports/pylint-parseable.txt || true    
+    - pylint src/*.py --output-format=text --reports=y > reports/pylint/pylint-report.txt || true
+    - pylint src/*.py --output-format=json > reports/pylint/pylint-report.json || true
+    - pylint src/*.py --output-format=parseable > reports/pylint/pylint-parseable.txt || true    
     
     # Show summary in console
     - echo "=== PYLINT SUMMARY ==="
-    - tail -n 20 reports/pylint-report.txt
+    - tail -n 20 reports/pylint/pylint-report.txt
   
     # Check for critical errors (optional)
     - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
