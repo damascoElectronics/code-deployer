@@ -222,14 +222,14 @@ quality-gate:
         exit 1
       fi
       
-      if [ ! -f "reports/pylint/pylint-report.json" ]; then
+      if [ ! -f "reports/pylint-report.json" ]; then 
         echo "ERROR: Pylint report not found"
         exit 1
       fi
       
       # Extraer métricas
       COVERAGE=$(python -c "import json; data=json.load(open('reports/coverage/coverage.json')); print(data['totals']['percent_covered'])")
-      PYLINT_SCORE=$(cat reports/pylint/pylint-report.txt | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+      PYLINT_SCORE=$(cat reports/pylint-report.txt | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
       
       echo "Coverage: $COVERAGE%"
       echo "Pylint Score: $PYLINT_SCORE/10"
