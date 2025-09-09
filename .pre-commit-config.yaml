@@ -99,7 +99,7 @@ repos:
   # 9. Validate docstrings (Google Style Guide)
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.3.0
-    hooks:
+    hooks: 
       - id: pydocstyle
         args: [--convention=google]
         additional_dependencies: [toml]

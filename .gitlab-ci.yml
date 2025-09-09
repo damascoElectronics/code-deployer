@@ -1,8 +1,11 @@
+# .gitlab-ci.yml - Complete CI/CD pipeline with security analysis
+
 # stages
 stages:
   - lint
   - test
   - coverage
+  - security
   - quality-gate
   - build
   - deploy
@@ -11,7 +14,10 @@ stages:
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   COVERAGE_THRESHOLD: "80"
-  PYLINT_THRESHOLD: "8.0" # <-- score minimum tu pass is 8.0 for code Quality style
+  PYLINT_THRESHOLD: "8.0"
+  SEMGREP_MAX_CRITICAL: "0"
+  SEMGREP_MAX_HIGH: "5"
+  SEMGREP_MAX_MEDIUM: "10"
   NC: '\033[0m' # No Color
   # Regular Colors
   RED: '\033[0;31m'        # Red
@@ -59,8 +65,7 @@ lint:pylint:
     paths:
       - reports/pylint
     expire_in: 1 week
-  allow_failure: false  # Set to true if you don't want the pipeline to fail.
-
+  allow_failure: false
 
 # ================================
 # STAGE: TEST
@@ -165,7 +170,6 @@ coverage:full:
   coverage: '/TOTAL.*\s+(\d+%)$/'
   allow_failure: false
 
-# Test de cobertura por módulos
 coverage:module-analysis:
   stage: coverage
   image: python:3.9
@@ -197,6 +201,151 @@ coverage:module-analysis:
     expire_in: 1 week
   allow_failure: true
 
+# ================================
+# STAGE: SECURITY
+# ================================
+
+security:semgrep:
+  stage: security
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/{semgrep,security,badges}
+    
+    # Run Semgrep SAST scan
+    - echo "Running Semgrep SAST analysis..."
+    - semgrep --config=auto --json --output=reports/semgrep/semgrep-results.json --severity=INFO src/ || true
+    - semgrep --config=auto --output=reports/semgrep/semgrep-results.txt --severity=INFO src/ || true
+    - semgrep --config=auto --sarif --output=reports/semgrep/semgrep-results.sarif --severity=INFO src/ || true
+    
+    # Run custom security rules if available
+    - |
+      if [ -f "custom-security-rules.yml" ]; then
+        echo "Running custom security rules..."
+        semgrep --config=custom-security-rules.yml --json --output=reports/semgrep/custom-results.json src/ || true
+      fi
+    
+    # Run Supply Chain Analysis
+    - echo "Running Supply Chain Analysis..."
+    - semgrep --config=p/supply-chain --json --output=reports/semgrep/sca-results.json requirements.txt || true
+    - safety check --json --output=reports/security/safety-report.json || true
+    - safety check --output=reports/security/safety-report.txt || true
+    
+    # Run Secrets Detection
+    - echo "Running secrets detection..."
+    - semgrep --config=p/secrets --json --output=reports/semgrep/secrets-results.json . || true
+    
+    # Run Bandit for Python security
+    - echo "Running Bandit analysis..."
+    - bandit -r src/ -f json -o reports/security/bandit-results.json || true
+    - bandit -r src/ -f txt -o reports/security/bandit-results.txt || true
+    
+    # Analyze results and create summary
+    - |
+      echo "Analyzing security findings..."
+      
+      CRITICAL_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          critical = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'ERROR')
+          print(critical)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      HIGH_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          high = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'WARNING')
+          print(high)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      MEDIUM_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          medium = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'INFO')
+          print(medium)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      TOTAL_FINDINGS=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT))
+      
+      echo "Security Analysis Summary:"
+      echo "Critical: $CRITICAL_COUNT"
+      echo "High: $HIGH_COUNT"
+      echo "Medium: $MEDIUM_COUNT"
+      echo "Total: $TOTAL_FINDINGS"
+      
+      # Generate security summary
+      mkdir -p reports/security
+      cat > reports/security/summary.json << EOF
+      {
+        "total_findings": $TOTAL_FINDINGS,
+        "critical_count": $CRITICAL_COUNT,
+        "high_count": $HIGH_COUNT,
+        "medium_count": $MEDIUM_COUNT,
+        "security_gate_passed": $([ $CRITICAL_COUNT -eq 0 ] && [ $HIGH_COUNT -le $SEMGREP_MAX_HIGH ] && echo "true" || echo "false"),
+        "thresholds": {
+          "max_critical": $SEMGREP_MAX_CRITICAL,
+          "max_high": $SEMGREP_MAX_HIGH,
+          "max_medium": $SEMGREP_MAX_MEDIUM
+        },
+        "timestamp": "$(date -Iseconds)",
+        "tools_used": ["semgrep", "bandit", "safety"]
+      }
+      EOF
+      
+      # Generate security badge
+      if [ "$CRITICAL_COUNT" -eq 0 ] && [ "$HIGH_COUNT" -eq 0 ]; then
+          SECURITY_COLOR="brightgreen"
+          SECURITY_MESSAGE="secure"
+      elif [ "$CRITICAL_COUNT" -eq 0 ] && [ "$HIGH_COUNT" -le "$SEMGREP_MAX_HIGH" ]; then
+          SECURITY_COLOR="yellow"
+          SECURITY_MESSAGE="warnings"
+      else
+          SECURITY_COLOR="red"
+          SECURITY_MESSAGE="issues"
+      fi
+      
+      cat > reports/badges/security.json << EOF
+      {
+        "schemaVersion": 1,
+        "label": "security",
+        "message": "$SECURITY_MESSAGE",
+        "color": "$SECURITY_COLOR"
+      }
+      EOF
+      
+      # Output findings summary
+      if [ -f "reports/semgrep/semgrep-results.txt" ]; then
+          echo "=== Top Security Findings ==="
+          head -n 20 reports/semgrep/semgrep-results.txt || true
+      fi
+      
+  artifacts:
+    when: always
+    paths:
+      - reports/semgrep/
+      - reports/security/
+      - reports/badges/
+    reports:
+      sast: reports/semgrep/semgrep-results.sarif
+    expire_in: 1 week
+  allow_failure: false
 
 # ================================
 # STAGE: QUALITY GATE
@@ -208,15 +357,16 @@ quality-gate:
   dependencies:
     - lint:pylint
     - coverage:full
+    - security:semgrep
   tags:
     - code-quality
     - static-analysis
   
   script:
     - |
-      echo "=== QUALITY GATE VALIDATION ==="
+      echo "=== COMPREHENSIVE QUALITY GATE VALIDATION ==="
       
-      # test if the file exist
+      # Check if required files exist
       if [ ! -f "reports/coverage/coverage.json" ]; then
         echo "ERROR: Coverage report not found"
         exit 1
@@ -227,16 +377,32 @@ quality-gate:
         exit 1
       fi
       
-      # Extact metrics
+      if [ ! -f "reports/security/summary.json" ]; then
+        echo "ERROR: Security report not found"
+        exit 1
+      fi
+      
+      # Extract metrics
       COVERAGE=$(python -c "import json; data=json.load(open('reports/coverage/coverage.json')); print(data['totals']['percent_covered'])")
       PYLINT_SCORE=$(cat reports/pylint/pylint-report.txt | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+      SECURITY_CRITICAL=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['critical_count'])")
+      SECURITY_HIGH=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['high_count'])")
+      SECURITY_TOTAL=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['total_findings'])")
       
-      echo "Coverage: $COVERAGE%"
-      echo "Pylint Score: $PYLINT_SCORE/10"
+      echo "┌─────────────────────────────────────────┐"
+      echo "│            QUALITY METRICS              │"
+      echo "├─────────────────────────────────────────┤"
+      echo "│ Coverage:     $COVERAGE%                   │"
+      echo "│ Pylint:       $PYLINT_SCORE/10                │"
+      echo "│ Sec Critical: $SECURITY_CRITICAL                   │"
+      echo "│ Sec High:     $SECURITY_HIGH                   │"
+      echo "│ Sec Total:    $SECURITY_TOTAL                  │"
+      echo "└─────────────────────────────────────────┘"
       
-      # validate umbral
+      # Validate thresholds
       QUALITY_GATE_PASSED=true
       
+      # Coverage check
       if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
         echo "FAILED: Coverage below threshold: $COVERAGE% < $COVERAGE_THRESHOLD%"
         QUALITY_GATE_PASSED=false
@@ -244,6 +410,7 @@ quality-gate:
         echo "PASSED: Coverage above threshold: $COVERAGE% >= $COVERAGE_THRESHOLD%"
       fi
       
+      # Pylint check
       if (( $(echo "$PYLINT_SCORE < $PYLINT_THRESHOLD" | bc -l) )); then
         echo "FAILED: Pylint score below threshold: $PYLINT_SCORE < $PYLINT_THRESHOLD"
         QUALITY_GATE_PASSED=false
@@ -251,22 +418,52 @@ quality-gate:
         echo "PASSED: Pylint score above threshold: $PYLINT_SCORE >= $PYLINT_THRESHOLD"
       fi
       
-      if [ "$QUALITY_GATE_PASSED" = false ]; then
-        echo "QUALITY GATE FAILED - Merge blocked"
-        exit 1
+      # Security checks
+      if [ "$SECURITY_CRITICAL" -gt "$SEMGREP_MAX_CRITICAL" ]; then
+        echo "FAILED: Critical security vulnerabilities found: $SECURITY_CRITICAL > $SEMGREP_MAX_CRITICAL"
+        QUALITY_GATE_PASSED=false
       else
-        echo "QUALITY GATE PASSED - Ready to merge"
+        echo "PASSED: No critical security vulnerabilities"
       fi
       
-      # Generate quality reports 
+      if [ "$SECURITY_HIGH" -gt "$SEMGREP_MAX_HIGH" ]; then
+        echo "FAILED: Too many high severity security issues: $SECURITY_HIGH > $SEMGREP_MAX_HIGH"
+        QUALITY_GATE_PASSED=false
+      else
+        echo "PASSED: High severity security issues within threshold: $SECURITY_HIGH <= $SEMGREP_MAX_HIGH"
+      fi
+      
+      # Final decision
+      if [ "$QUALITY_GATE_PASSED" = false ]; then
+        echo ""
+        echo "🚨 QUALITY GATE FAILED - Merge blocked"
+        echo "Fix the issues above before proceeding"
+        exit 1
+      else
+        echo ""
+        echo "🎉 QUALITY GATE PASSED - Ready to merge"
+        echo "All quality and security checks passed!"
+      fi
+      
+      # Generate comprehensive quality reports 
       mkdir -p reports/quality-gate
       cat > reports/quality-gate/summary.json << EOF
       {
-        "coverage": $COVERAGE,
-        "pylint_score": $PYLINT_SCORE,
-        "coverage_threshold": $COVERAGE_THRESHOLD,
-        "pylint_threshold": $PYLINT_THRESHOLD,
-        "quality_gate_passed": $QUALITY_GATE_PASSED,
+        "overall_passed": $QUALITY_GATE_PASSED,
+        "metrics": {
+          "coverage": $COVERAGE,
+          "pylint_score": $PYLINT_SCORE,
+          "security_critical": $SECURITY_CRITICAL,
+          "security_high": $SECURITY_HIGH,
+          "security_total": $SECURITY_TOTAL
+        },
+        "thresholds": {
+          "coverage_threshold": $COVERAGE_THRESHOLD,
+          "pylint_threshold": $PYLINT_THRESHOLD,
+          "security_max_critical": $SEMGREP_MAX_CRITICAL,
+          "security_max_high": $SEMGREP_MAX_HIGH,
+          "security_max_medium": $SEMGREP_MAX_MEDIUM
+        },
         "timestamp": "$(date -Iseconds)"
       }
       EOF
@@ -278,20 +475,102 @@ quality-gate:
     expire_in: 1 week
   allow_failure: false
 
+# ================================
+# STAGE: BUILD
+# ================================
 
-# To integrate reports into Merge Requests, you can use GitLab Page
-pages:
+build:
   stage: build
   image: python:3.9
   tags:
     - code-quality
     - static-analysis
   script:
-    - mkdir public
-    - cp -r reports/html/* public/ 2>/dev/null || echo "No HTML reports found"
+    - echo "Building application..."
+    - python -m pip install --upgrade pip
+    - pip install build
+    - python -m build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+
+# ================================
+# REPORTS & PAGES
+# ================================
+
+pages:
+  stage: build
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  dependencies:
+    - coverage:full
+    - security:semgrep
+    - quality-gate
+  script:
+    - mkdir -p public
+    
+    # Copy coverage reports
+    - cp -r reports/coverage/html/* public/ 2>/dev/null || echo "No coverage HTML reports found"
+    
+    # Create index page with links to all reports
+    - |
+      cat > public/index.html << 'EOF'
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Code Quality Dashboard</title>
+          <style>
+              body { font-family: Arial, sans-serif; margin: 40px; }
+              .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+              .header { color: #333; border-bottom: 2px solid #007cba; padding-bottom: 10px; }
+              a { color: #007cba; text-decoration: none; }
+              a:hover { text-decoration: underline; }
+              .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; }
+              .success { background-color: #28a745; }
+              .warning { background-color: #ffc107; color: black; }
+              .danger { background-color: #dc3545; }
+          </style>
+      </head>
+      <body>
+          <h1 class="header"> Code Quality & Security Dashboard</h1>
+          
+          <div class="card">
+              <h2> Coverage Report</h2>
+              <p>Detailed test coverage analysis</p>
+              <a href="index.html">View Coverage Report</a>
+          </div>
+          
+          <div class="card">
+              <h2> Code Quality</h2>
+              <p>Pylint analysis and style guide compliance</p>
+              <p>Reports available in GitLab artifacts</p>
+          </div>
+          
+          <div class="card">
+              <h2> Security Analysis</h2>
+              <p>SAST, SCA, and secrets detection results</p>
+              <p>Semgrep, Bandit, and Safety reports available in artifacts</p>
+          </div>
+          
+          <div class="card">
+              <h2> Quality Gate</h2>
+              <p>Overall pipeline status and metrics</p>
+              <p>Summary available in GitLab artifacts</p>
+          </div>
+      </body>
+      </html>
+      EOF
+      
   artifacts:
     paths:
       - public
+    expire_in: 30 days
   only:
     - main
     - master

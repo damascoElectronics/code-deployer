@@ -8,37 +8,98 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     git \
     bc \
+    curl \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
 ENV COVERAGE_THRESHOLD=80
 ENV PYLINT_THRESHOLD=8.0
+ENV SEMGREP_MAX_CRITICAL=0
+ENV SEMGREP_MAX_HIGH=5
+ENV SEMGREP_MAX_MEDIUM=10
 
 # Copy requirements first for better caching
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt \
+    # Verify security tools installation
+    semgrep --version && \
+    bandit --version && \
+    safety --version && \
+    pylint --version && \
+    pytest --version
 
 # Copy project files
 COPY . .
 
 # Create reports directory
-RUN mkdir -p reports/{tests,coverage,pylint,badges}
+RUN mkdir -p reports/{tests,coverage,pylint,semgrep,security,badges,quality-gate}
 
 # Make scripts executable
-RUN chmod +x scripts/run-tests.sh
+RUN chmod +x scripts/*.sh
+
+# Create entrypoint script for flexible execution
+RUN cat > /entrypoint.sh << 'EOF'
+
+#!/bin/bash
+set -e
+
+echo "=== Docker Test Container ==="
+echo "Available commands:"
+echo "  comprehensive  - Run full pipeline"
+echo "  security      - Run security analysis only"
+echo "  tests         - Run tests and coverage only"
+echo "  lint          - Run pylint only"
+echo "  custom        - Run custom command"
+echo ""
+
+case "$1" in
+    comprehensive)
+        echo "Running comprehensive test pipeline..."
+        ./scripts/run-comprehensive-tests.sh
+        ;;
+    security)
+        echo "Running security analysis..."
+        ./scripts/run-semgrep.sh
+        ;;
+    tests)
+        echo "Running tests and coverage..."
+        ./scripts/run-tests.sh
+        ;;
+    lint)
+        echo "Running pylint analysis..."
+        ./scripts/run-pylint.sh
+        ;;
+    custom)
+        shift
+        echo "Running custom command: $@"
+        exec "$@"
+        ;;
+    *)
+        echo "Running default comprehensive pipeline..."
+        ./scripts/run-comprehensive-tests.sh
+        ;;
+esac
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Set default entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Set default command
-CMD ["./scripts/run-tests.sh"]
+CMD ["comprehensive"]
 
-# Health check
+# Health check to verify tools are working
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
+    CMD python -c "import pytest, pylint, semgrep, bandit, safety; print('All tools available')" || exit 1
 
 # Labels for metadata
 LABEL maintainer="your-email@example.com"
-LABEL version="1.0"
-LABEL description="Testing container for Python code quality pipeline"
+LABEL version="2.0"
+LABEL description="Comprehensive testing container with security analysis for Python projects"
+LABEL tools="pytest,pylint,semgrep,bandit,safety,coverage"

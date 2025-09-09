@@ -1,0 +1,175 @@
+rules:
+  - id: insecure-deserialization-pickle
+    pattern: |
+      pickle.loads($DATA)
+    message: |
+      Insecure deserialization with pickle.loads() can lead to code execution.
+      Use json.loads() or implement safe deserialization methods.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+      owasp: "A08:2021 – Software and Data Integrity Failures"
+      category: security
+      subcategory: ["vuln"]
+      references:
+        - "https://owasp.org/www-community/vulnerabilities/Deserialization_of_untrusted_data"
+        - "https://docs.python.org/3/library/pickle.html#restriction"
+
+  - id: hardcoded-secret-in-code
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = "sk_..."
+          - pattern: |
+              $VAR = "pk_..."
+          - pattern: |
+              password = "..."
+          - pattern: |
+              api_key = "..."
+          - pattern: |
+              secret = "..."
+    message: |
+      Hardcoded secret detected. Store secrets in environment variables or secure vaults.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A02:2021 – Cryptographic Failures"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: sql-injection-format-string
+    pattern: |
+      $CURSOR.execute(f"... {$VAR} ...")
+    message: |
+      Potential SQL injection using f-string formatting. Use parameterized queries instead.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 – Injection"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: unsafe-yaml-load
+    pattern: |
+      yaml.load($DATA)
+    message: |
+      Unsafe YAML loading can lead to code execution. Use yaml.safe_load() instead.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+      owasp: "A08:2021 – Software and Data Integrity Failures"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: insecure-random-usage
+    patterns:
+      - pattern-either:
+          - pattern: |
+              import random
+              ...
+              random.random()
+          - pattern: |
+              from random import random
+              ...
+              random()
+    message: |
+      Using random module for security purposes is not cryptographically secure.
+      Use secrets module instead for security-sensitive randomness.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator"
+      owasp: "A02:2021 – Cryptographic Failures"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: weak-hash-algorithm
+    patterns:
+      - pattern-either:
+          - pattern: |
+              hashlib.md5($DATA)
+          - pattern: |
+              hashlib.sha1($DATA)
+    message: |
+      Weak hash algorithm detected. Use SHA-256 or stronger algorithms.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp: "A02:2021 – Cryptographic Failures"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: debug-mode-enabled
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.debug = True
+          - pattern: |
+              DEBUG = True
+          - pattern: |
+              app.config['DEBUG'] = True
+    message: |
+      Debug mode should not be enabled in production environments.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-489: Active Debug Code"
+      owasp: "A05:2021 – Security Misconfiguration"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: unsafe-shell-execution
+    patterns:
+      - pattern-either:
+          - pattern: |
+              subprocess.call($CMD, shell=True)
+          - pattern: |
+              subprocess.run($CMD, shell=True)
+          - pattern: |
+              os.system($CMD)
+    message: |
+      Unsafe shell execution can lead to command injection. Avoid shell=True or validate input thoroughly.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 – Injection"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: insecure-http-usage
+    patterns:
+      - pattern-either:
+          - pattern: |
+              requests.get("http://...")
+          - pattern: |
+              requests.post("http://...")
+          - pattern: |
+              urllib.request.urlopen("http://...")
+    message: |
+      HTTP usage detected. Use HTTPS for secure communication.
+    languages: [python]
+    severity: INFO
+    metadata:
+      cwe: "CWE-319: Cleartext Transmission of Sensitive Information"
+      owasp: "A02:2021 – Cryptographic Failures"
+      category: security
+      subcategory: ["vuln"]
+
+  - id: unsafe-temp-file
+    pattern: |
+      tempfile.mktemp()
+    message: |
+      mktemp() is vulnerable to race conditions. Use mkstemp() or NamedTemporaryFile() instead.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-377: Insecure Temporary File"
+      owasp: "A05:2021 – Security Misconfiguration"
+      category: security
+      subcategory: ["vuln"]
