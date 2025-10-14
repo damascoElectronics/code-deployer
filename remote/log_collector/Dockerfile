@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -18,8 +21,7 @@ COPY app.py .
 # Make script executable
 RUN chmod +x app.py
 
-# Create directory for logs (future use)
-RUN mkdir -p /logs
+# Volume for log files
+VOLUME ["/app/logs"]
 
-# Run the application
 CMD ["python", "app.py"]

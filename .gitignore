@@ -1,10 +1,6 @@
 
 ## File generarte by the simulator
-
-kms-main.log
-kms-metric.log
-qnl-main.log
-qnl-metric.log
+.log
 
 # enviroment 
 .venv
