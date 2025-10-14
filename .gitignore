@@ -1,6 +1,6 @@
 
 ## File generarte by the simulator
-.log
+*.log
 
 # enviroment 
 .venv

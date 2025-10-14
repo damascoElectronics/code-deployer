@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Container 2 - Log Collector (VM2)
-Simulates log generation similar to KeyPoolService logs
+Generates KeyPool logs and exposes them via HTTP API
 """
 
 import time
@@ -10,6 +10,10 @@ from datetime import datetime
 import os
 import random
 import uuid
+import json
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from threading import Thread
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -19,9 +23,10 @@ logging.basicConfig(
 logger = logging.getLogger('log_collector')
 
 # Directory where logs will be written
-# Use ./logs for local testing, /app/logs in Docker
 DEFAULT_LOG_DIR = '/app/logs' if os.path.exists('/app') else './logs'
 LOG_OUTPUT_DIR = os.getenv('LOG_OUTPUT_DIR', DEFAULT_LOG_DIR)
+HTTP_PORT = int(os.getenv('HTTP_PORT', 8080))
+
 
 class KeyPoolLogSimulator:
     """Simulates KeyPool service log generation"""
@@ -92,6 +97,108 @@ class KeyPoolLogSimulator:
         return controller_log
 
 
+class LogAPIHandler(BaseHTTPRequestHandler):
+    """HTTP Request Handler for Log API"""
+    
+    def log_message(self, format, *args):
+        """Override to use our logger instead of stderr"""
+        logger.info(f"HTTP: {format % args}")
+    
+    def do_GET(self):
+        """Handle GET requests"""
+        
+        if self.path == '/':
+            # API info endpoint
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            response = {
+                'service': 'Log Collector API',
+                'version': '1.0',
+                'endpoints': {
+                    '/': 'API information',
+                    '/logs': 'List all log files',
+                    '/logs/<filename>': 'Download specific log file'
+                }
+            }
+            self.wfile.write(json.dumps(response, indent=2).encode())
+        
+        elif self.path == '/logs':
+            # List all log files
+            try:
+                log_path = Path(LOG_OUTPUT_DIR)
+                log_files = []
+                
+                if log_path.exists():
+                    for log_file in sorted(log_path.glob('*.log')):
+                        stats = log_file.stat()
+                        log_files.append({
+                            'filename': log_file.name,
+                            'size': stats.st_size,
+                            'created': datetime.fromtimestamp(stats.st_ctime).isoformat(),
+                            'modified': datetime.fromtimestamp(stats.st_mtime).isoformat(),
+                            'download_url': f'/logs/{log_file.name}'
+                        })
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                
+                response = {
+                    'count': len(log_files),
+                    'files': log_files
+                }
+                self.wfile.write(json.dumps(response, indent=2).encode())
+                
+            except Exception as e:
+                logger.error(f"Error listing logs: {e}")
+                self.send_error(500, f"Error listing logs: {str(e)}")
+        
+        elif self.path.startswith('/logs/'):
+            # Download specific log file
+            filename = self.path[6:]  # Remove '/logs/'
+            filepath = Path(LOG_OUTPUT_DIR) / filename
+            
+            # Security: prevent directory traversal
+            try:
+                filepath = filepath.resolve()
+                if not str(filepath).startswith(str(Path(LOG_OUTPUT_DIR).resolve())):
+                    self.send_error(403, "Access denied")
+                    return
+            except Exception:
+                self.send_error(400, "Invalid filename")
+                return
+            
+            if filepath.exists() and filepath.is_file():
+                try:
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/plain')
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    self.end_headers()
+                    
+                    with open(filepath, 'rb') as f:
+                        self.wfile.write(f.read())
+                    
+                    logger.info(f"Served log file: {filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Error serving file {filename}: {e}")
+                    self.send_error(500, f"Error reading file: {str(e)}")
+            else:
+                self.send_error(404, "Log file not found")
+        
+        else:
+            self.send_error(404, "Endpoint not found")
+
+
+def start_http_server():
+    """Start HTTP server in a separate thread"""
+    server = HTTPServer(('0.0.0.0', HTTP_PORT), LogAPIHandler)
+    logger.info(f"HTTP Server started on port {HTTP_PORT}")
+    server.serve_forever()
+
+
 def write_logs_to_file(log_lines, filename):
     """Write log lines to a file"""
     os.makedirs(LOG_OUTPUT_DIR, exist_ok=True)
@@ -107,14 +214,22 @@ def write_logs_to_file(log_lines, filename):
 
 def main():
     """Main function for Container 2 - Log Collector"""
+    logger.info("=" * 60)
     logger.info("Container 2 (Log Collector) starting up...")
     logger.info(f"Running on VM2 - Site ID: 100")
     logger.info(f"Log output directory: {LOG_OUTPUT_DIR}")
+    logger.info(f"HTTP API port: {HTTP_PORT}")
+    logger.info("=" * 60)
     
     # Show environment info
     logger.info(f"Working directory: {os.getcwd()}")
     if hasattr(os, 'uname'):
         logger.info(f"Hostname: {os.uname().nodename}")
+    
+    # Start HTTP server in background thread
+    http_thread = Thread(target=start_http_server, daemon=True)
+    http_thread.start()
+    logger.info("HTTP API server started successfully")
     
     # Create log simulator
     simulator = KeyPoolLogSimulator(site_id=100)
@@ -128,7 +243,7 @@ def main():
         
         logger.info(f"[Iteration {iteration}] Generating log batch...")
         
-        # Generate a batch of key creation logs (similar to your sample)
+        # Generate a batch of key creation logs
         batch_size = random.randint(20, 30)
         log_lines = []
         
@@ -150,12 +265,13 @@ def main():
         # Write to file
         filepath = write_logs_to_file(log_lines, log_filename)
         
-        logger.info(f"Generated {len(log_lines)} log entries in {log_filename}")
-        logger.info(f"Current sequence number: {simulator.sequence_number}")
+        logger.info(f"✓ Generated {len(log_lines)} log entries in {log_filename}")
+        logger.info(f"  Sequence: {simulator.sequence_number}")
+        logger.info(f"  Available via: http://<server>:{HTTP_PORT}/logs/{log_filename}")
         
         # Wait before generating next batch
         sleep_time = random.randint(30, 60)
-        logger.info(f"Waiting {sleep_time} seconds before next batch...")
+        logger.info(f"Sleeping {sleep_time}s until next batch...\n")
         time.sleep(sleep_time)
 
 
@@ -163,7 +279,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        logger.info("Container 2 shutting down gracefully...")
+        logger.info("\nContainer 2 shutting down gracefully...")
     except Exception as e:
         logger.error(f"Error in Container 2: {e}", exc_info=True)
         raise
