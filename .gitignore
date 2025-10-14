@@ -5,3 +5,7 @@ kms-main.log
 kms-metric.log
 qnl-main.log
 qnl-metric.log
+
+# enviroment 
+.venv
+.env
