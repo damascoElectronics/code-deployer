@@ -222,7 +222,7 @@ deploy_log_collector_vm2:
         docker stop log_collector_container 2>/dev/null || echo "No existing container to stop";
         docker rm log_collector_container 2>/dev/null || echo "No existing container to remove";
         echo "Starting log_collector container...";
-        docker run -d --name log_collector_container --restart unless-stopped log_collector:latest;
+        docker run -d --name log_collector_container --restart unless-stopped -p 8080:8080 log_collector:latest;
         echo "Verifying container status...";
         sleep 5;
         docker ps | grep log_collector_container;
