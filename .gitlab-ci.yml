@@ -237,7 +237,7 @@ deploy_log_collector_vm2:
     
     # Clean up local transfer file
     - rm -f log_collector_transfer.tar
-    - echo '✅ log_collector deployed and running on VM2'
+    - echo '✓ log_collector deployed and running on VM2'
     
   dependencies:
     - build_log_collector
@@ -266,7 +266,7 @@ verify_deployment:
         docker logs --tail 10 log_collector_container;
       '
     
-    - echo '✅ Deployment verification complete'
+    - echo '✓ Deployment verification complete'
     - echo 'Both containers should be running and logging messages every 30 seconds'
     
   dependencies:
@@ -282,29 +282,176 @@ verify_deployment:
 stop_all_containers:
   stage: stop
   script:
-    - echo 'Stopping both containers...'
+    - echo '========================================='
+    - echo 'EXPORTING LOGS BEFORE STOPPING CONTAINERS'
+    - echo '========================================='
     
+    # Create artifacts directory structure
+    - mkdir -p artifacts/vm1_downloaded_logs
+    - mkdir -p artifacts/vm2_generated_logs
+    - mkdir -p artifacts/container_logs
+    
+    # === EXPORT LOGS FROM VM1 ===
+    - echo ''
+    - echo '=== Exporting logs from VM1 (log_processor) ==='
+    
+    # Copy downloaded logs from log_processor container
+    - |
+      if sudo docker ps -a | grep -q log_processor_container; then
+        echo "Copying downloaded logs from log_processor container..."
+        sudo docker cp log_processor_container:/app/downloaded_logs/. artifacts/vm1_downloaded_logs/ 2>/dev/null || \
+        docker cp log_processor_container:/app/downloaded_logs/. artifacts/vm1_downloaded_logs/ 2>/dev/null || \
+        echo "⚠ No downloaded logs found in VM1"
+        
+        echo "Copying processed files tracking log..."
+        sudo docker cp log_processor_container:/app/downloaded_logs/.processed_files.txt artifacts/vm1_downloaded_logs/ 2>/dev/null || \
+        docker cp log_processor_container:/app/downloaded_logs/.processed_files.txt artifacts/vm1_downloaded_logs/ 2>/dev/null || \
+        echo "⚠ No processed files log found"
+        
+        echo "Saving VM1 container logs..."
+        sudo docker logs log_processor_container > artifacts/container_logs/vm1_log_processor.log 2>&1 || \
+        docker logs log_processor_container > artifacts/container_logs/vm1_log_processor.log 2>&1 || \
+        echo "⚠ Could not export VM1 container logs"
+      else
+        echo "⚠ log_processor_container not found on VM1"
+      fi
+    
+    # === EXPORT LOGS FROM VM2 ===
+    - echo ''
+    - echo '=== Exporting logs from VM2 (log_collector) ==='
+    
+    # Copy generated logs from log_collector container via SSH
+    - |
+      if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 starion@192.168.0.11 'docker ps -a | grep -q log_collector_container'; then
+        echo "Copying generated logs from log_collector container on VM2..."
+        
+        # Copy logs from container to temp directory on VM2
+        ssh -o StrictHostKeyChecking=no starion@192.168.0.11 "
+          mkdir -p /tmp/vm2_export_logs && \
+          docker cp log_collector_container:/app/logs/. /tmp/vm2_export_logs/ 2>/dev/null || \
+          echo 'No logs in container'
+        " || echo "⚠ Failed to copy from VM2 container"
+        
+        # Transfer logs from VM2 to VM1
+        scp -r -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          starion@192.168.0.11:/tmp/vm2_export_logs/* \
+          artifacts/vm2_generated_logs/ 2>/dev/null || echo "⚠ No generated logs found in VM2"
+        
+        # Save VM2 container logs
+        echo "Saving VM2 container logs..."
+        ssh -o StrictHostKeyChecking=no starion@192.168.0.11 \
+          "docker logs log_collector_container" > artifacts/container_logs/vm2_log_collector.log 2>&1 || \
+          echo "⚠ Could not export VM2 container logs"
+        
+        # Cleanup temp directory on VM2
+        ssh -o StrictHostKeyChecking=no starion@192.168.0.11 "rm -rf /tmp/vm2_export_logs" || true
+      else
+        echo "⚠ log_collector_container not found on VM2"
+      fi
+    
+    # === CREATE SUMMARY REPORT ===
+    - echo ''
+    - echo '=== Creating summary report ==='
+    - |
+      cat > artifacts/LOGS_SUMMARY.txt << EOF
+      =========================================================
+                    LOG EXPORT SUMMARY
+      =========================================================
+      Export Date:     $(date '+%Y-%m-%d %H:%M:%S %Z')
+      Pipeline ID:     $CI_PIPELINE_ID
+      Job ID:          $CI_JOB_ID
+      Commit SHA:      $CI_COMMIT_SHA
+      Short SHA:       $CI_COMMIT_SHORT_SHA
+      Branch:          $CI_COMMIT_REF_NAME
+      Triggered by:    $GITLAB_USER_LOGIN
+      =========================================================
+      
+      VM1 - DOWNLOADED LOGS (log_processor):
+      ---------------------------------------------------------
+      $(ls -lh artifacts/vm1_downloaded_logs/ 2>/dev/null | tail -n +2 || echo "No files found")
+      
+      Total files: $(find artifacts/vm1_downloaded_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
+      Total size:  $(du -sh artifacts/vm1_downloaded_logs/ 2>/dev/null | cut -f1 || echo "0")
+      
+      Processed files list:
+      $(cat artifacts/vm1_downloaded_logs/.processed_files.txt 2>/dev/null || echo "No processed files log")
+      
+      =========================================================
+      
+      VM2 - GENERATED LOGS (log_collector):
+      ---------------------------------------------------------
+      $(ls -lh artifacts/vm2_generated_logs/ 2>/dev/null | tail -n +2 || echo "No files found")
+      
+      Total files: $(find artifacts/vm2_generated_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
+      Total size:  $(du -sh artifacts/vm2_generated_logs/ 2>/dev/null | cut -f1 || echo "0")
+      
+      =========================================================
+      
+      CONTAINER LOGS:
+      ---------------------------------------------------------
+      $(ls -lh artifacts/container_logs/ 2>/dev/null | tail -n +2 || echo "No container logs")
+      
+      =========================================================
+      
+      STATISTICS:
+      ---------------------------------------------------------
+      Total log files exported:     $(find artifacts/ -type f -name "*.log" 2>/dev/null | wc -l)
+      Total artifacts size:         $(du -sh artifacts/ 2>/dev/null | cut -f1 || echo "0")
+      VM1 downloaded logs count:    $(find artifacts/vm1_downloaded_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
+      VM2 generated logs count:     $(find artifacts/vm2_generated_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
+      
+      =========================================================
+      EOF
+    
+    - echo ''
+    - echo '=== SUMMARY REPORT ==='
+    - cat artifacts/LOGS_SUMMARY.txt
+    - echo ''
+    - echo '✓ Logs exported successfully to artifacts/'
+    
+    # === NOW STOP THE CONTAINERS ===
+    - echo ''
+    - echo '========================================='
+    - echo 'STOPPING CONTAINERS'
+    - echo '========================================='
+      
     # Stop VM1 container
+    - echo ''
     - echo '=== Stopping VM1 container ==='
-    - sudo docker stop log_processor_container || docker stop log_processor_container || echo 'VM1 container was not running'
-    - sudo docker rm log_processor_container || docker rm log_processor_container || echo 'VM1 container was already removed'
+    - sudo docker stop log_processor_container || docker stop log_processor_container || echo '⚠ VM1 container was not running'
+    - sudo docker rm log_processor_container || docker rm log_processor_container || echo '⚠ VM1 container was already removed'
     
     # Stop VM2 container
+    - echo ''
     - echo '=== Stopping VM2 container ==='
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
-        docker stop log_collector_container || echo "VM2 container was not running";
-        docker rm log_collector_container || echo "VM2 container was already removed";
+        docker stop log_collector_container || echo "⚠ VM2 container was not running";
+        docker rm log_collector_container || echo "⚠ VM2 container was already removed";
       '
     
     # Final verification
+    - echo ''
     - echo '=== Final verification ==='
-    - echo 'VM1 container status'
-    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container || echo 'VM1 container stopped'
-    - echo 'VM2 container status'
-    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "VM2 container stopped"'
+    - echo 'VM1 container status:'
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container || echo '✓ VM1 container stopped'
+    - echo 'VM2 container status:'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "✓ VM2 container stopped"'
     
+    - echo ''
+    - echo '========================================='
     - echo '✅ All containers stopped successfully'
-    
+    - echo '📦 Logs saved as artifacts - check Downloads'
+    - echo '========================================='
+  
+  artifacts:
+    name: "logs-stop-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
+    paths:
+      - artifacts/
+    expire_in: 30 days  # Los logs de stop se guardan más tiempo
+    when: always  # Guardar artifacts incluso si algo falla
+    reports:
+      dotenv: artifacts/LOGS_SUMMARY.txt
+  
   when: manual
   allow_failure: true
   only:
