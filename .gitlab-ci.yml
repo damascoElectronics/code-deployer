@@ -183,16 +183,16 @@ deploy_log_processor_vm1:
     
     # Run the new container
     - echo 'Starting log_processor container on VM1...'
-    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=30 log_processor:latest
+    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=30 log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=30 log_processor:latest
     
     # Verify container is running
     - echo 'Verifying log_processor container status...'
     - sleep 5
-    - sudo docker ps | grep log_processor_container 
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
     
     # Show recent logs
     - echo "Recent logs:"
-    - sudo docker logs --tail 20 log_processor_container
+    - sudo docker logs --tail 20 log_processor_container || docker logs --tail 20 log_processor_container
 
     - echo '✓ log_processor deployed and running on VM1'
     
