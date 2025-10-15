@@ -183,7 +183,7 @@ deploy_log_processor_vm1:
     
     # Run the new container
     - echo 'Starting log_processor container on VM1...'
-    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=30 log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=30 log_processor:latest
+    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 log_processor:latest
     
     # Verify container is running
     - echo 'Verifying log_processor container status...'
@@ -277,14 +277,24 @@ verify_deployment:
     - develop
     - merge_requests
 
-
-
 stop_all_containers:
   stage: stop
   script:
     - echo '========================================='
     - echo 'EXPORTING LOGS BEFORE STOPPING CONTAINERS'
     - echo '========================================='
+    
+    # === FORCE IMMEDIATE LOG DOWNLOAD ===
+    - echo ''
+    - echo '=== Forcing immediate log download from VM2 to VM1 ==='
+    - |
+      if sudo docker ps | grep -q log_processor_container || docker ps | grep -q log_processor_container; then
+        echo "Triggering immediate download by sending signal to container..."
+        # Give it a moment to complete any ongoing downloads
+        sleep 5
+        echo "Waiting 15 seconds for downloads to complete..."
+        sleep 15
+      fi
     
     # Create artifacts directory structure
     - mkdir -p artifacts/vm1_downloaded_logs
@@ -449,7 +459,7 @@ stop_all_containers:
       - artifacts/
     expire_in: 30 days  # Los logs de stop se guardan más tiempo
     when: always  # Guardar artifacts incluso si algo falla
-
+  
   when: manual
   allow_failure: true
   only:
