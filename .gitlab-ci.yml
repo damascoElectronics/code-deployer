@@ -449,9 +449,7 @@ stop_all_containers:
       - artifacts/
     expire_in: 30 days  # Los logs de stop se guardan más tiempo
     when: always  # Guardar artifacts incluso si algo falla
-    reports:
-      dotenv: artifacts/LOGS_SUMMARY.txt
-  
+
   when: manual
   allow_failure: true
   only:
