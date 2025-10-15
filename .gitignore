@@ -1,7 +1,9 @@
 
 ## File generarte by the simulator
 *.log
-
+*.pyc
 # enviroment 
 .venv
 .env
+
+__pycache__

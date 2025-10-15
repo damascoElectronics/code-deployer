@@ -113,6 +113,18 @@ test_ssh_connection:
     
   allow_failure: true
 
+# Test MySQL
+test_mysql_setup:
+  stage: test
+  script:
+    - echo 'Testing MySQL setup files...'
+    - test -f local/mysql/init/01-schema.sql && echo '✅ Schema file exists'
+    - test -f local/mysql/docker-compose.yml && echo '✅ MySQL compose file exists'
+  only:
+    - main
+    - develop
+    - merge_requests
+
 # Build stage - generate containers for deployment
 build_log_processor:
   stage: build
@@ -170,6 +182,17 @@ build_log_collector:
     - develop
     - merge_requests
 
+# Build MySQL
+build_mysql:
+  stage: build
+  script:
+    - echo 'MySQL uses official image - no build needed'
+    - echo '✅ MySQL ready'
+  only:
+    - main
+    - develop
+    - merge_requests
+
 # Deploy stage - deploy containers to VMs and verify execution
 deploy_log_processor_vm1:
   stage: deploy
@@ -183,7 +206,7 @@ deploy_log_processor_vm1:
     
     # Run the new container
     - echo 'Starting log_processor container on VM1...'
-    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 log_processor:latest
+    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest
     
     # Verify container is running
     - echo 'Verifying log_processor container status...'
@@ -196,8 +219,10 @@ deploy_log_processor_vm1:
 
     - echo '✓ log_processor deployed and running on VM1'
     
+    
   dependencies:
     - build_log_processor
+    - deploy_mysql_vm1
   only:
     - main
     - develop
@@ -241,6 +266,34 @@ deploy_log_collector_vm2:
     
   dependencies:
     - build_log_collector
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Deploy MySQL
+deploy_mysql_vm1:
+  stage: deploy
+  script:
+    - echo 'Deploying MySQL to VM1...'
+    - cd local/mysql/
+    
+    # Stop existing MySQL if running
+    - sudo docker-compose down || docker-compose down || echo 'No existing MySQL'
+    
+    # Start MySQL
+    - sudo docker-compose up -d || docker-compose up -d
+    
+    # Wait for MySQL to be ready
+    - echo 'Waiting for MySQL to be ready...'
+    - sleep 20
+    
+    # Verify MySQL is running
+    - sudo docker-compose ps || docker-compose ps
+    - sudo docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;" || docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
+    
+    - cd ../../
+    - echo '✅ MySQL deployed on VM1'
   only:
     - main
     - develop
