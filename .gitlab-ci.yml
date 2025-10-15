@@ -524,14 +524,145 @@ stop_all_containers:
     - echo '📦 Logs saved as artifacts - check Downloads'
     - echo '========================================='
   
+    - echo ''
+    - echo '=== Exporting Database ==='
+    - mkdir -p artifacts/database
+    - |
+      docker exec keypool_mysql mysqldump \
+        -u keypool_user \
+        -pkeypool_password \
+        keypool_logs \
+        > artifacts/database/keypool_logs_backup.sql
+    
+    - ls -lah artifacts/database/
+
   artifacts:
     name: "logs-stop-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
     paths:
       - artifacts/
-    expire_in: 30 days  # Los logs de stop se guardan más tiempo
-    when: always  # Guardar artifacts incluso si algo falla
+    expire_in: 30 days 
+    when: always  
   
   when: manual
+  allow_failure: true
+  only:
+    - main
+    - develop
+    - merge_requests
+
+
+export_database:
+  stage: stop  # O crea un nuevo stage "export"
+  script:
+    - echo 'Exporting database...'
+    - mkdir -p artifacts/database
+    
+    # Export completo (estructura + datos)
+    - echo 'Creating full database dump...'
+    - |
+      docker exec keypool_mysql mysqldump \
+        -u keypool_user \
+        -pkeypool_password \
+        keypool_logs \
+        > artifacts/database/keypool_logs_full_$(date +%Y%m%d_%H%M%S).sql
+    
+    # Export solo estructura (sin datos)
+    - echo 'Creating schema-only dump...'
+    - |
+      docker exec keypool_mysql mysqldump \
+        -u keypool_user \
+        -pkeypool_password \
+        --no-data \
+        keypool_logs \
+        > artifacts/database/keypool_logs_schema_$(date +%Y%m%d_%H%M%S).sql
+    
+    # Export solo datos (sin estructura)
+    - echo 'Creating data-only dump...'
+    - |
+      docker exec keypool_mysql mysqldump \
+        -u keypool_user \
+        -pkeypool_password \
+        --no-create-info \
+        keypool_logs \
+        > artifacts/database/keypool_logs_data_$(date +%Y%m%d_%H%M%S).sql
+    
+    # Export en CSV para cada tabla
+    - echo 'Exporting tables to CSV...'
+    - mkdir -p artifacts/database/csv
+    - |
+      for table in key_creations sync_latency_metrics key_count_metrics controller_syncs processed_files; do
+        docker exec keypool_mysql mysql \
+          -u keypool_user \
+          -pkeypool_password \
+          keypool_logs \
+          -e "SELECT * FROM $table INTO OUTFILE '/tmp/${table}.csv' 
+              FIELDS TERMINATED BY ',' 
+              ENCLOSED BY '\"' 
+              LINES TERMINATED BY '\n';" 2>/dev/null || echo "Table $table export failed"
+        
+        docker cp keypool_mysql:/tmp/${table}.csv artifacts/database/csv/ 2>/dev/null || echo "No data in $table"
+        docker exec keypool_mysql rm /tmp/${table}.csv 2>/dev/null || true
+      done
+    
+    # Create database info file
+    - |
+      cat > artifacts/database/DB_INFO.txt << EOF
+      =========================================================
+                    DATABASE EXPORT INFO
+      =========================================================
+      Export Date:     $(date '+%Y-%m-%d %H:%M:%S %Z')
+      Pipeline ID:     $CI_PIPELINE_ID
+      Commit SHA:      $CI_COMMIT_SHORT_SHA
+      Branch:          $CI_COMMIT_REF_NAME
+      
+      DATABASE CREDENTIALS:
+      ---------------------
+      Host:            127.0.0.1 (or keypool_mysql container)
+      Port:            3307
+      Database:        keypool_logs
+      User:            keypool_user
+      Password:        keypool_password
+      Root Password:   root_password_change_me
+      
+      FILES INCLUDED:
+      ---------------
+      - keypool_logs_full_*.sql       (Complete dump)
+      - keypool_logs_schema_*.sql     (Structure only)
+      - keypool_logs_data_*.sql       (Data only)
+      - csv/*.csv                     (Individual tables in CSV)
+      
+      RESTORE INSTRUCTIONS:
+      ---------------------
+      # Full restore:
+      mysql -u keypool_user -pkeypool_password keypool_logs < keypool_logs_full_*.sql
+      
+      # Or with Docker:
+      docker exec -i keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs < keypool_logs_full_*.sql
+      
+      TABLE STATISTICS:
+      -----------------
+      $(docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "
+      SELECT 'key_creations' as Table_Name, COUNT(*) as Records FROM key_creations
+      UNION ALL SELECT 'sync_latency_metrics', COUNT(*) FROM sync_latency_metrics
+      UNION ALL SELECT 'key_count_metrics', COUNT(*) FROM key_count_metrics
+      UNION ALL SELECT 'controller_syncs', COUNT(*) FROM controller_syncs
+      UNION ALL SELECT 'processed_files', COUNT(*) FROM processed_files;
+      ")
+      =========================================================
+      EOF
+    
+    - cat artifacts/database/DB_INFO.txt
+    - ls -lah artifacts/database/
+    - echo '✅ Database exported successfully'
+  
+  artifacts:
+    name: "database-export-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
+    paths:
+      - artifacts/database/
+    expire_in: 90 days  
+    when: always
+  
+  when: manual  
   allow_failure: true
   only:
     - main
