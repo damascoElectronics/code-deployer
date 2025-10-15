@@ -277,32 +277,32 @@ deploy_mysql_vm1:
   script:
     - echo 'Deploying MySQL to VM1...'
     
-    # Check if port 3306 is already in use
-    - echo 'Checking if port 3306 is available...'
-    - sudo netstat -tuln | grep 3306 || netstat -tuln | grep 3306 || echo 'Port 3306 is free'
+    # Stop and remove ALL MySQL containers (running or stopped)
+    - echo 'Cleaning up any existing MySQL containers...'
+    - sudo docker ps -a | grep keypool_mysql | awk '{print $1}' | xargs -r sudo docker stop 2>/dev/null || docker ps -a | grep keypool_mysql | awk '{print $1}' | xargs -r docker stop 2>/dev/null || echo 'No containers to stop'
+    - sudo docker ps -a | grep keypool_mysql | awk '{print $1}' | xargs -r sudo docker rm 2>/dev/null || docker ps -a | grep keypool_mysql | awk '{print $1}' | xargs -r docker rm 2>/dev/null || echo 'No containers to remove'
     
-    # Stop existing MySQL container if exists
-    - echo 'Stopping existing MySQL container...'
-    - sudo docker stop keypool_mysql 2>/dev/null || docker stop keypool_mysql 2>/dev/null || echo 'No MySQL container running'
-    - sudo docker rm keypool_mysql 2>/dev/null || docker rm keypool_mysql 2>/dev/null || echo 'No MySQL container to remove'
+    # Also try by container ID if name doesn't work
+    - sudo docker ps -a | grep mysql:8.0 | awk '{print $1}' | xargs -r sudo docker stop 2>/dev/null || docker ps -a | grep mysql:8.0 | awk '{print $1}' | xargs -r docker stop 2>/dev/null || echo 'No MySQL 8.0 containers'
+    - sudo docker ps -a | grep mysql:8.0 | awk '{print $1}' | xargs -r sudo docker rm 2>/dev/null || docker ps -a | grep mysql:8.0 | awk '{print $1}' | xargs -r docker rm 2>/dev/null || echo 'No MySQL 8.0 containers to remove'
+    
+    # Kill any docker-proxy processes on port 3306
+    - echo 'Killing any docker-proxy on port 3306...'
+    - sudo lsof -ti:3306 | xargs -r sudo kill -9 2>/dev/null || lsof -ti:3306 | xargs -r kill -9 2>/dev/null || echo 'No processes on 3306'
+    
+    # Wait a moment for cleanup
+    - sleep 3
+    
+    # Verify port is free
+    - echo 'Verifying port 3306 is available...'
+    - sudo netstat -tuln | grep 3306 && echo 'WARNING: Port still in use!' || echo '✓ Port 3306 is free'
     
     # Create volume if doesn't exist
-    - sudo docker volume create mysql_data 2>/dev/null || docker volume create mysql_data 2>/dev/null || echo 'Volume may already exist'
+    - sudo docker volume create mysql_data 2>/dev/null || docker volume create mysql_data 2>/dev/null || echo 'Volume exists'
     
     # Start MySQL container (with fallback)
     - echo 'Starting MySQL container...'
     - |
-      sudo docker run -d \
-        --name keypool_mysql \
-        --restart unless-stopped \
-        -e MYSQL_ROOT_PASSWORD=root_password_change_me \
-        -e MYSQL_DATABASE=keypool_logs \
-        -e MYSQL_USER=keypool_user \
-        -e MYSQL_PASSWORD=keypool_password \
-        -p 3306:3306 \
-        -v mysql_data:/var/lib/mysql \
-        -v $(pwd)/local/mysql/init:/docker-entrypoint-initdb.d:ro \
-        mysql:8.0 || \
       docker run -d \
         --name keypool_mysql \
         --restart unless-stopped \
@@ -321,18 +321,34 @@ deploy_mysql_vm1:
     
     # Verify MySQL is running
     - echo 'Verifying MySQL container...'
-    - sudo docker ps | grep keypool_mysql || docker ps | grep keypool_mysql
+    - docker ps | grep keypool_mysql
     
     # Check MySQL logs
     - echo 'Recent MySQL logs:'
-    - sudo docker logs --tail 20 keypool_mysql || docker logs --tail 20 keypool_mysql
+    - docker logs --tail 30 keypool_mysql
     
     # Test MySQL connection
     - echo 'Testing MySQL connection...'
-    - sudo docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;" || docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
+    - docker exec keypool_mysql mysqladmin ping -h localhost -u keypool_user -pkeypool_password || echo 'MySQL not ready yet'
+    
+    # Wait a bit more if needed
+    - sleep 10
+    
+    # Test connection again
+    - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
     
     # Verify tables were created from schema
-    - echo 'Checking if tables were created
+    - echo 'Checking if tables were created...'
+    - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;"
+    
+    - echo '✅ MySQL deployed successfully on VM1'
+  
+  only:
+    - main
+    - develop
+    - merge_requests
+
+
 # Verify deployment - check both containers are running
 verify_deployment:
   stage: deploy
@@ -344,6 +360,8 @@ verify_deployment:
     - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
     - sudo docker logs --tail 10 log_processor_container || docker logs --tail 10 log_processor_container
     
+
+
     # Check VM2 container
     - echo 'Checking log_collector on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
@@ -359,6 +377,8 @@ verify_deployment:
   dependencies:
     - deploy_log_processor_vm1
     - deploy_log_collector_vm2
+    - deploy_mysql_vm1
+
   only:
     - main
     - develop
