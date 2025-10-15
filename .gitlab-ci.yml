@@ -277,12 +277,12 @@ deploy_mysql_vm1:
   script:
     - echo 'Deploying MySQL to VM1...'
     
-    # Clean up any old keypool_mysql containers
+    # Clean up
     - docker rm -f keypool_mysql 2>/dev/null || echo 'No container'
     - docker volume create mysql_data 2>/dev/null || echo 'Volume exists'
     
-    # Start MySQL on port 3307 (host) -> 3306 (container)
-    - echo 'Starting MySQL on port 3307 (Redmine is using 3306)...'
+    # Start MySQL 5.7 (compatible with older CPUs)
+    - echo 'Starting MySQL 5.7 on port 3307...'
     - |
       docker run -d \
         --name keypool_mysql \
@@ -294,29 +294,24 @@ deploy_mysql_vm1:
         -p 3307:3306 \
         -v mysql_data:/var/lib/mysql \
         -v $(pwd)/local/mysql/init:/docker-entrypoint-initdb.d:ro \
-        mysql:8.0
+        mysql:5.7
     
     - echo 'Waiting for MySQL to initialize (40 seconds)...'
     - sleep 40
     
-    - echo 'Verifying MySQL container...'
     - docker ps | grep keypool_mysql
     - docker logs --tail 30 keypool_mysql
     
-    # Test connection
-    - echo 'Testing MySQL connection...'
     - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
-    
-    # Verify tables
-    - echo 'Verifying tables were created...'
     - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;"
     
-    - echo '✅ MySQL deployed on port 3307'
+    - echo '✅ MySQL 5.7 deployed on port 3307'
   
   only:
     - main
     - develop
     - merge_requests
+
 # Verify deployment - check both containers are running
 verify_deployment:
   stage: deploy
@@ -327,7 +322,8 @@ verify_deployment:
     - echo 'Checking log_processor on VM1...'
     - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
     - sudo docker logs --tail 10 log_processor_container || docker logs --tail 10 log_processor_container
-    
+    - sudo docker ps | grep keypool_mysql ||  docker ps | grep keypool_mysql  
+    - sudo docker logs --tail 30 keypool_mysql || docker logs --tail 30 keypool_mysql 
 
 
     # Check VM2 container
@@ -340,7 +336,7 @@ verify_deployment:
       '
     
     - echo '✓ Deployment verification complete'
-    - echo 'Both containers should be running and logging messages every 30 seconds'
+    - echo 'three containers should be running and logging messages every 30 seconds'
     
   dependencies:
     - deploy_log_processor_vm1
