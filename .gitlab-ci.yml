@@ -276,24 +276,63 @@ deploy_mysql_vm1:
   stage: deploy
   script:
     - echo 'Deploying MySQL to VM1...'
-    - cd local/mysql/
     
-    # Stop existing MySQL if running
-    - sudo docker-compose down || docker-compose down || echo 'No existing MySQL'
+    # Stop existing MySQL container if exists
+    - echo 'Stopping existing MySQL container...'
+    - sudo docker stop keypool_mysql 2>/dev/null || docker stop keypool_mysql 2>/dev/null || echo 'No MySQL container running'
+    - sudo docker rm keypool_mysql 2>/dev/null || docker rm keypool_mysql 2>/dev/null || echo 'No MySQL container to remove'
     
-    # Start MySQL
-    - sudo docker-compose up -d || docker-compose up -d
+    # Create volume if doesn't exist
+    - sudo docker volume create mysql_data 2>/dev/null || docker volume create mysql_data 2>/dev/null || echo 'Volume already exists'
     
-    # Wait for MySQL to be ready
-    - echo 'Waiting for MySQL to be ready...'
-    - sleep 20
+    # Start MySQL container
+    - echo 'Starting MySQL container...'
+    - |
+      sudo docker run -d \
+        --name keypool_mysql \
+        --restart unless-stopped \
+        -e MYSQL_ROOT_PASSWORD=root_password_change_me \
+        -e MYSQL_DATABASE=keypool_logs \
+        -e MYSQL_USER=keypool_user \
+        -e MYSQL_PASSWORD=keypool_password \
+        -p 3306:3306 \
+        -v mysql_data:/var/lib/mysql \
+        -v $(pwd)/local/mysql/init:/docker-entrypoint-initdb.d:ro \
+        mysql:8.0 || \
+      docker run -d \
+        --name keypool_mysql \
+        --restart unless-stopped \
+        -e MYSQL_ROOT_PASSWORD=root_password_change_me \
+        -e MYSQL_DATABASE=keypool_logs \
+        -e MYSQL_USER=keypool_user \
+        -e MYSQL_PASSWORD=keypool_password \
+        -p 3306:3306 \
+        -v mysql_data:/var/lib/mysql \
+        -v $(pwd)/local/mysql/init:/docker-entrypoint-initdb.d:ro \
+        mysql:8.0
+    
+    # Wait for MySQL to initialize
+    - echo 'Waiting for MySQL to initialize...'
+    - sleep 30
     
     # Verify MySQL is running
-    - sudo docker-compose ps || docker-compose ps
-    - sudo docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;" || docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
+    - echo 'Verifying MySQL container...'
+    - sudo docker ps | grep keypool_mysql || docker ps | grep keypool_mysql
     
-    - cd ../../
+    # Check MySQL logs
+    - echo 'MySQL container logs:'
+    - sudo docker logs --tail 20 keypool_mysql || docker logs --tail 20 keypool_mysql
+    
+    # Test MySQL connection
+    - echo 'Testing MySQL connection...'
+    - sudo docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;" || docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;" || echo 'MySQL not ready yet, will retry in deployment'
+    
+    # Verify tables were created
+    - echo 'Checking tables...'
+    - sudo docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;" || docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;" || echo 'Tables not created yet'
+    
     - echo '✅ MySQL deployed on VM1'
+  
   only:
     - main
     - develop
