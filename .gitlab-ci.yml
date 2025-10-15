@@ -206,7 +206,7 @@ deploy_log_processor_vm1:
     
     # Run the new container
     - echo 'Starting log_processor container on VM1...'
-    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3307 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest
+    - sudo docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3307 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest || docker run -d --name log_processor_container --restart unless-stopped --network host -e VM2_HOST=192.168.0.11 -e VM2_PORT=8080 -e POLL_INTERVAL=10 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3307 -e MYSQL_USER=keypool_user -e MYSQL_PASSWORD=keypool_password -e MYSQL_DATABASE=keypool_logs log_processor:latest
     
     # Verify container is running
     - echo 'Verifying log_processor container status...'
