@@ -295,7 +295,7 @@ deploy_mysql_vm1:
     
     # Verify port is free
     - echo 'Verifying port 3306 is available...'
-    - sudo netstat -tuln | grep 3306 && echo 'WARNING: Port still in use!' || echo '✓ Port 3306 is free'
+    - sudo netstat -tuln | grep 3306 && echo 'WARNING Port still in use!' || echo '✓ Port 3306 is free'
     
     # Create volume if doesn't exist
     - sudo docker volume create mysql_data 2>/dev/null || docker volume create mysql_data 2>/dev/null || echo 'Volume exists'
