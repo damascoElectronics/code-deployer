@@ -1,9 +1,7 @@
 FROM python:3.9-slim
-
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies if needed
+# Install MySQL client dependencies
 RUN apt-get update && \
     apt-get install -y default-libmysqlclient-dev gcc && \
     rm -rf /var/lib/apt/lists/*
@@ -11,17 +9,16 @@ RUN apt-get update && \
 # Create directory for downloaded logs
 RUN mkdir -p /app/downloaded_logs
 
-# Copy requirements first for better caching
+# Copy requirements first (for Docker layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY app.py .
+# Copy ALL Python files
+COPY *.py ./
 
-# Make script executable
-RUN chmod +x app.py
+# Verify files are copied (optional, for debugging)
+RUN ls -la /app/
 
-# Volume for downloaded logs
 VOLUME ["/app/downloaded_logs"]
 
 CMD ["python", "app.py"]
