@@ -15,8 +15,8 @@ RUN mkdir -p /app/logs
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY app.py .
+# Copy ALL Python files
+COPY *.py ./
 
 # Expose HTTP port
 EXPOSE 8080
