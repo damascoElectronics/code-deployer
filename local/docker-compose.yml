@@ -15,6 +15,12 @@ services:
       - log_network
     # Future: add depends_on for database service
 
+volumes:
+  mysql_data:
+    driver: local
+  log_processor_data:
+    driver: local
+
 networks:
   log_network:
     driver: bridge
