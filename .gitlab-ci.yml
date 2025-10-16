@@ -392,13 +392,17 @@ deploy_grafana_vm1:
     # Create MySQL datasource configuration dynamically
     - echo 'Creating MySQL datasource configuration...'
     - |
+      # Detect IP host Docker
+      DOCKER_HOST_IP=$(ip -4 addr show docker0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "172.17.0.1")
+      echo "Using Docker host IP: $DOCKER_HOST_IP"
+
       cat > local/grafana/config/datasources/mysql.yml << EOF
       apiVersion: 1
       datasources:
         - name: MySQL-KeyPool
           type: mysql
           access: proxy
-          url: host.docker.internal:${MYSQL_PORT}
+          url: $DOCKER_HOST_IP:${MYSQL_PORT}
           user: ${MYSQL_USER}
           database: ${MYSQL_DATABASE}
           basicAuth: false
