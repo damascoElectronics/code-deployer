@@ -16,7 +16,7 @@ variables:
   # Grafana Configuration
   GRAFANA_ADMIN_USER: 'admin'
   GRAFANA_ADMIN_PASSWORD: 'admin123'
-  GRAFANA_PORT: '3000'
+  GRAFANA_PORT: '3003'
   # terminal colors
   GREEN: '\033[0;32m'
   RED: '\033[0;31m'
@@ -441,7 +441,7 @@ deploy_grafana_vm1:
         -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
         -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
         -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
-        -e GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_PORT} \
+        -e GF_SERVER_ROOT_URL=http://0.0.0.0:${GRAFANA_PORT} \
         -e GF_SECURITY_ALLOW_EMBEDDING=true \
         -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
         -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
@@ -455,7 +455,7 @@ deploy_grafana_vm1:
         -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
         -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
         -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
-        -e GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_PORT} \
+        -e GF_SERVER_ROOT_URL=http://0.0.0.0:${GRAFANA_PORT} \
         -e GF_SECURITY_ALLOW_EMBEDDING=true \
         -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
         -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
@@ -473,7 +473,7 @@ deploy_grafana_vm1:
     
     # Check Grafana health
     - echo 'Checking Grafana health...'
-    - curl -f http://localhost:${GRAFANA_PORT}/api/health || echo 'Grafana health check failed (might need more time)'
+    - curl -f http://0.0.0.0:${GRAFANA_PORT}/api/health || echo 'Grafana health check failed (might need more time)'
     
     # Show Grafana logs
     - echo 'Recent Grafana logs:'
@@ -487,7 +487,7 @@ deploy_grafana_vm1:
       echo 'MySQL connectivity test failed'
     
     - echo '✅ Grafana deployed successfully!'
-    - echo "📊 Access Grafana at:\ http://localhost:${GRAFANA_PORT}"
+    - echo "📊 Access Grafana at:\ http://0.0.0.0:${GRAFANA_PORT}"
     - echo "👤 Username:\ ${GRAFANA_ADMIN_USER}"
     - echo "🔑 Password:\ ${GRAFANA_ADMIN_PASSWORD}"
     
@@ -542,7 +542,7 @@ verify_deployment:
     
     # Test Grafana API
     - echo '=== Testing Grafana API ==='
-    - curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} http://localhost:${GRAFANA_PORT}/api/datasources | python3 -m json.tool || echo 'Grafana API test failed'
+    - curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} http://0.0.0.0:${GRAFANA_PORT}/api/datasources | python3 -m json.tool || echo 'Grafana API test failed'
     
     - echo '✅ Deployment verification complete'
     - echo '📊 System Overview:'
@@ -645,13 +645,13 @@ stop_all_containers:
         
         # Export dashboards via API
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
+          http://0.0.0.0:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
           > artifacts/grafana/dashboard_export.json 2>/dev/null || \
           echo "⚠️  Could not export dashboard"
         
         # Export datasources
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/datasources \
+          http://0.0.0.0:${GRAFANA_PORT}/api/datasources \
           > artifacts/grafana/datasources.json 2>/dev/null || \
           echo "⚠️  Could not export datasources"
         
@@ -937,29 +937,29 @@ export_grafana:
         # Export all dashboards
         echo 'Exporting dashboards via API...'
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/search?type=dash-db \
+          http://0.0.0.0:${GRAFANA_PORT}/api/search?type=dash-db \
           > artifacts/grafana/all_dashboards.json
         
         # Export specific dashboard
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
+          http://0.0.0.0:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
           > artifacts/grafana/dashboards/keypool-dashboard.json
         
         # Export datasources
         echo 'Exporting datasources...'
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/datasources \
+          http://0.0.0.0:${GRAFANA_PORT}/api/datasources \
           > artifacts/grafana/datasources/all_datasources.json
         
         # Export alerts (if any)
         echo 'Exporting alerts...'
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/alerts \
+          http://0.0.0.0:${GRAFANA_PORT}/api/alerts \
           > artifacts/grafana/alerts.json 2>/dev/null || echo "No alerts configured"
         
         # Export org preferences
         curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
-          http://localhost:${GRAFANA_PORT}/api/org/preferences \
+          http://0.0.0.0:${GRAFANA_PORT}/api/org/preferences \
           > artifacts/grafana/org_preferences.json
       fi
     
@@ -981,7 +981,7 @@ export_grafana:
       
       GRAFANA ACCESS:
       ---------------------
-      URL:             http://localhost:${GRAFANA_PORT}
+      URL:             http://0.0.0.0:${GRAFANA_PORT}
       Username:        ${GRAFANA_ADMIN_USER}
       Password:        ${GRAFANA_ADMIN_PASSWORD}
       
@@ -999,7 +999,7 @@ export_grafana:
       IMPORT INSTRUCTIONS:
       ---------------------
       1. Start Grafana container
-      2. Access Grafana at http://localhost:${GRAFANA_PORT}
+      2. Access Grafana at http://0.0.0.0:${GRAFANA_PORT}
       3. Login with credentials above
       4. Import dashboard from JSON file
       5. Configure MySQL datasource if needed
