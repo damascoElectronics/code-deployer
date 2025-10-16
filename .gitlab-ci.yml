@@ -462,6 +462,7 @@ deploy_grafana_vm1:
         grafana/grafana:latest || \
       docker run -d \
         --name grafana \
+        --network keypool-network \
         --restart unless-stopped \
         -p ${GRAFANA_PORT}:3000 \
         -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
