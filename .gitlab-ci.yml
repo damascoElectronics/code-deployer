@@ -27,7 +27,7 @@ test_python_syntax:
   stage: test
   script:
     - echo 'Starting Python syntax and compilation tests...'
-    - echo -e "'$GREEN'Python version'$NC'"
+    - echo -e 'Python version'
     - python3 --version
     - echo 'Pip version'
     - pip3 --version
