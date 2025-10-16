@@ -79,7 +79,7 @@
           "where": []
         }
       ],
-      "title": "Total Logs Procesados",
+      "title": "Total Processed Logs",
       "type": "stat"
     },
     {
@@ -164,7 +164,7 @@
           "where": []
         }
       ],
-      "title": "Logs por Minuto (Última Hora)",
+      "title": "Logs per Minute (Last Hour)",
       "type": "timeseries"
     },
     {
@@ -216,7 +216,7 @@
           "refId": "A"
         }
       ],
-      "title": "Sites Únicos (Source)",
+      "title": "Unique Sites (Source)",
       "type": "stat"
     },
     {
@@ -271,7 +271,7 @@
           "refId": "A"
         }
       ],
-      "title": "Distribución por Key Pool Type",
+      "title": "Distribution by Key Pool Type",
       "type": "piechart"
     },
     {
@@ -338,7 +338,7 @@
           "refId": "A"
         }
       ],
-      "title": "Últimos 50 Logs Procesados",
+      "title": "Last 50 Processed Logs",
       "type": "table"
     },
     {
@@ -411,7 +411,7 @@
           "refId": "A"
         }
       ],
-      "title": "Logs por Source Site (24 Horas)",
+      "title": "Logs by Source Site (24 Hours)",
       "type": "timeseries"
     },
     {
@@ -473,13 +473,17 @@
           "refId": "A"
         }
       ],
-      "title": "% Logs Última Hora",
+      "title": "% Logs Last Hour",
       "type": "gauge"
     }
   ],
   "schemaVersion": 30,
   "style": "dark",
-  "tags": ["keypool", "logs", "monitoring"],
+  "tags": [
+    "keypool",
+    "logs",
+    "monitoring"
+  ],
   "templating": {
     "list": []
   },
@@ -488,7 +492,18 @@
     "to": "now"
   },
   "timepicker": {
-    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
   },
   "timezone": "",
   "title": "KeyPool Logs Dashboard",
