@@ -50,7 +50,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
@@ -63,12 +65,14 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as value, NOW() as time FROM logs_data",
+          "rawSql": "SELECT COUNT(*) AS value, NOW() AS time FROM processed_files;",
           "refId": "A",
           "select": [
             [
               {
-                "params": ["id"],
+                "params": [
+                  "id"
+                ],
                 "type": "column"
               }
             ]
@@ -79,7 +83,7 @@
           "where": []
         }
       ],
-      "title": "Total Processed Logs",
+      "title": "Total Processed Files",
       "type": "stat"
     },
     {
@@ -148,12 +152,14 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n  DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:00') as time,\n  COUNT(*) as 'Logs por Minuto'\nFROM logs_data\nWHERE created_at >= NOW() - INTERVAL 1 HOUR\nGROUP BY DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:00')\nORDER BY time",
+          "rawSql": "SELECT \n  DATE_FORMAT(processed_at, '%Y-%m-%d %H:%i:00') AS time,\n  COUNT(*) AS 'Files per Minute'\nFROM processed_files\nWHERE processed_at >= NOW() - INTERVAL 1 HOUR\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "select": [
             [
               {
-                "params": ["id"],
+                "params": [
+                  "id"
+                ],
                 "type": "column"
               }
             ]
@@ -164,7 +170,7 @@
           "where": []
         }
       ],
-      "title": "Logs per Minute (Last Hour)",
+      "title": "Files per Minute (Last Hour)",
       "type": "timeseries"
     },
     {
@@ -199,7 +205,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
@@ -212,11 +220,11 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT source_site_id) as value, NOW() as time FROM logs_data",
+          "rawSql": "SELECT COUNT(DISTINCT source_site_id) AS value, NOW() AS time FROM key_creations;",
           "refId": "A"
         }
       ],
-      "title": "Unique Sites (Source)",
+      "title": "Unique Source Sites",
       "type": "stat"
     },
     {
@@ -249,12 +257,16 @@
         "legend": {
           "displayMode": "list",
           "placement": "right",
-          "values": ["value"]
+          "values": [
+            "value"
+          ]
         },
         "pieType": "pie",
         "reduceOptions": {
           "values": false,
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "single"
@@ -267,7 +279,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n  key_pool_type as metric,\n  COUNT(*) as value\nFROM logs_data\nGROUP BY key_pool_type",
+          "rawSql": "SELECT \n  key_pool_type AS metric,\n  COUNT(*) AS value\nFROM key_creations\nGROUP BY key_pool_type;",
           "refId": "A"
         }
       ],
@@ -334,11 +346,11 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n  key_identity,\n  sequence_number,\n  source_site_id,\n  destination_site_id,\n  key_pool_type,\n  timestamp,\n  created_at\nFROM logs_data\nORDER BY created_at DESC\nLIMIT 50",
+          "rawSql": "SELECT \n  key_identity,\n  sequence_number,\n  source_site_id,\n  destination_site_id,\n  key_pool_type,\n  timestamp,\n  created_at\nFROM key_creations\nORDER BY created_at DESC\nLIMIT 50;",
           "refId": "A"
         }
       ],
-      "title": "Last 50 Processed Logs",
+      "title": "Last 50 Processed Keys",
       "type": "table"
     },
     {
@@ -407,11 +419,11 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n  DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00') as time,\n  source_site_id as metric,\n  COUNT(*) as value\nFROM logs_data\nWHERE created_at >= NOW() - INTERVAL 24 HOUR\nGROUP BY DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00'), source_site_id\nORDER BY time",
+          "rawSql": "SELECT \n  DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00') AS time,\n  source_site_id AS metric,\n  COUNT(*) AS value\nFROM key_creations\nWHERE created_at >= NOW() - INTERVAL 24 HOUR\nGROUP BY time, source_site_id\nORDER BY time;",
           "refId": "A"
         }
       ],
-      "title": "Logs by Source Site (24 Hours)",
+      "title": "Keys by Source Site (Last 24 Hours)",
       "type": "timeseries"
     },
     {
@@ -456,7 +468,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
-          "calcs": ["mean"]
+          "calcs": [
+            "mean"
+          ]
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
@@ -469,11 +483,11 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n  (COUNT(*) / (SELECT COUNT(*) FROM logs_data) * 100) as value,\n  NOW() as time\nFROM logs_data\nWHERE created_at >= NOW() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT \n  (COUNT(*) / (SELECT COUNT(*) FROM key_creations) * 100) AS value,\n  NOW() AS time\nFROM key_creations\nWHERE created_at >= NOW() - INTERVAL 1 HOUR;",
           "refId": "A"
         }
       ],
-      "title": "% Logs Last Hour",
+      "title": "% Keys in Last Hour",
       "type": "gauge"
     }
   ],
