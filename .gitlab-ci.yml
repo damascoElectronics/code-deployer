@@ -337,6 +337,9 @@ deploy_mysql_vm1:
   stage: deploy
   script:
     - echo 'Deploying MySQL to VM1...'
+
+    # Create shared network if it doesn't exist
+    - docker network create keypool-network 2>/dev/null || echo 'Network already exists'
     
     # Clean up
     - docker rm -f keypool_mysql 2>/dev/null || echo 'No container'
@@ -347,6 +350,7 @@ deploy_mysql_vm1:
     - |
       docker run -d \
         --name keypool_mysql \
+        --network keypool-network \
         --restart unless-stopped \
         -e MYSQL_ROOT_PASSWORD=root_password_change_me \
         -e MYSQL_DATABASE=keypool_logs \
@@ -379,6 +383,9 @@ deploy_grafana_vm1:
   script:
     - echo '📊 Deploying Grafana to VM1...'
     
+    # Create shared network if it doesn't exist
+    - docker network create keypool-network 2>/dev/null || echo 'Network already exists'
+
     # Stop any existing Grafana container
     - echo 'Stopping existing Grafana container...'
     - sudo docker stop grafana 2>/dev/null || docker stop grafana 2>/dev/null || echo 'No existing Grafana to stop'
@@ -402,7 +409,7 @@ deploy_grafana_vm1:
         - name: MySQL-KeyPool
           type: mysql
           access: proxy
-          url: $DOCKER_HOST_IP:${MYSQL_PORT}
+          url: keypool_mysql:3306  
           user: ${MYSQL_USER}
           database: ${MYSQL_DATABASE}
           basicAuth: false
@@ -440,6 +447,7 @@ deploy_grafana_vm1:
     - |
       sudo docker run -d \
         --name grafana \
+        --network keypool-network \
         --restart unless-stopped \
         -p ${GRAFANA_PORT}:3000 \
         -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
