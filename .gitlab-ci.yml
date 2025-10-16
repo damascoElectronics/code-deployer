@@ -1,18 +1,33 @@
+
 stages:
   - test
-  - build
+    - build
   - deploy
   - stop
 
 variables:
   PYTHON_VERSION: '3.9'
+  # MySQL Configuration (centralized)
+  MYSQL_ROOT_PASSWORD: 'root_password_change_me'
+  MYSQL_DATABASE: 'keypool_logs'
+  MYSQL_USER: 'keypool_user'
+  MYSQL_PASSWORD: 'keypool_password'
+  MYSQL_PORT: '3307'
+  # Grafana Configuration
+  GRAFANA_ADMIN_USER: 'admin'
+  GRAFANA_ADMIN_PASSWORD: 'admin123'
+  GRAFANA_PORT: '3000'
+  # terminal colors
+  GREEN: '\033[0;32m'
+  RED: '\033[0;31m'
+  NC: '\033[0m'
 
 # Test stage - all validation tests
 test_python_syntax:
   stage: test
   script:
     - echo 'Starting Python syntax and compilation tests...'
-    - echo 'Python version'
+    - echo -e "'$GREEN'Python version'$NC'"
     - python3 --version
     - echo 'Pip version'
     - pip3 --version
@@ -20,12 +35,12 @@ test_python_syntax:
     # Test Container 1 (log_processor)
     - echo 'Testing log_processor Python syntax...'
     - python3 -m py_compile local/log_processor/app.py
-    - echo '✅ log_processor/app.py syntax OK'
+    - echo '✓ log_processor/app.py syntax OK'
     
     # Test Container 2 (log_collector)  
     - echo 'Testing log_collector Python syntax...'
     - python3 -m py_compile remote/log_collector/app.py
-    - echo '✅ log_collector/app.py syntax OK'
+    - echo '✓ log_collector/app.py syntax OK'
     
     # Create virtual environment for testing dependencies
     - echo 'Creating virtual environment...'
@@ -36,20 +51,20 @@ test_python_syntax:
     - echo 'Installing dependencies for log_processor...'
     - cd local/log_processor
     - pip install -r requirements.txt
-    - python3 -c "import time, logging, datetime; print('✅ log_processor imports OK')"
+    - python3 -c "import time, logging, datetime; print('✓ log_processor imports OK')"
     - cd ../../
     
     # Install dependencies and test imports for log_collector
     - echo 'Installing dependencies for log_collector...'
     - cd remote/log_collector  
     - pip install -r requirements.txt
-    - python3 -c "import time, logging, datetime, os; print('✅ log_collector imports OK')"
+    - python3 -c "import time, logging, datetime, os; print('✓ log_collector imports OK')"
     - cd ../../
     
     # Test if scripts can run for a few seconds
     - echo 'Testing if scripts can execute...'
-    - timeout 5 python3 local/log_processor/app.py || echo '✅ log_processor runs (timeout expected)'
-    - timeout 5 python3 remote/log_collector/app.py || echo '✅ log_collector runs (timeout expected)'
+    - timeout 5 python3 local/log_processor/app.py || echo '✓ log_processor runs (timeout expected)'
+    - timeout 5 python3 remote/log_collector/app.py || echo '✓ log_collector runs (timeout expected)'
     
     # Cleanup
     - deactivate || true
@@ -101,7 +116,7 @@ test_ssh_connection:
     
     # Test SSH connection
     - echo 'Testing SSH connection...'
-    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'echo "✅ SSH connection successful from $(hostname) to $(hostname)"' || echo '❌ SSH connection failed'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'echo "✓ SSH connection successful from $(hostname) to $(hostname)"' || echo '✗ SSH connection failed'
     
     # Test if we can access VM2 file system
     - echo 'Testing file system access on VM2...'
@@ -118,8 +133,31 @@ test_mysql_setup:
   stage: test
   script:
     - echo 'Testing MySQL setup files...'
-    - test -f local/mysql/init/01-schema.sql && echo '✅ Schema file exists'
-    - test -f local/mysql/docker-compose.yml && echo '✅ MySQL compose file exists'
+    - test -f local/mysql/init/01-schema.sql && echo '✓ Schema file exists'
+    - test -f local/mysql/docker-compose.yml && echo '✓ MySQL compose file exists'
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Test Grafana configuration
+test_grafana_setup:
+  stage: test
+  script:
+    - echo 'Testing Grafana setup files...'
+    - echo 'Checking Grafana directory structure...'
+    - test -d local/grafana && echo '✓ Grafana directory exists' || echo ' Grafana directory missing'
+    - test -f local/grafana/docker-compose.yml && echo '✓ Grafana compose file exists' || echo '✗ Grafana compose missing'
+    - test -d local/grafana/config/datasources && echo '✓ Datasources config directory exists' || echo '✗ Datasources directory missing'
+    - test -f local/grafana/config/datasources/mysql.yml && echo '✓ MySQL datasource config exists' || echo '✗ MySQL datasource missing'
+    - test -d local/grafana/dashboards && echo '✓ Dashboards directory exists' || echo '✗ Dashboards directory missing'
+    - test -f local/grafana/dashboards/keypool-logs-dashboard.json && echo '✓ Dashboard JSON exists' || echo '✗ Dashboard JSON missing'
+    
+    # Validate JSON dashboard
+    - echo 'Validating dashboard JSON...'
+    - python3 -c "import json; json.load(open('local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo '✓ Dashboard JSON is valid' || echo '✗ Invalid JSON'
+    
+  allow_failure: false
   only:
     - main
     - develop
@@ -138,7 +176,7 @@ build_log_processor:
     
     # Verify the image was built
     - sudo docker images | grep log_processor || docker images | grep log_processor
-    - echo '✅ log_processor container built successfully'
+    - echo '✓ log_processor container built successfully'
     
     # Optional - save image info for later use
     - sudo docker inspect log_processor:latest --format='{{.Id}}' > ../log_processor_image_id.txt || docker inspect log_processor:latest --format='{{.Id}}' > ../log_processor_image_id.txt
@@ -166,7 +204,7 @@ build_log_collector:
     
     # Verify the image was built
     - sudo docker images | grep log_collector || docker images | grep log_collector
-    - echo '✅ log_collector container built successfully'
+    - echo '✓ log_collector container built successfully'
     
     # Optional - save image info for later use
     - sudo docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt || docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt
@@ -187,7 +225,30 @@ build_mysql:
   stage: build
   script:
     - echo 'MySQL uses official image - no build needed'
-    - echo '✅ MySQL ready'
+    - echo '✓ MySQL ready'
+  only:
+    - main
+    - develop
+    - merge_requests
+
+build_grafana:
+  stage: build
+  script:
+    - echo 'Preparing Grafana configuration...'
+    
+    # Verify Grafana image is available
+    - echo 'Pulling Grafana image...'
+    - sudo docker pull grafana/grafana:latest || docker pull grafana/grafana:latest
+    
+    # Verify image
+    - sudo docker images | grep grafana || docker images | grep grafana
+    
+    # Create necessary volumes
+    - echo 'Creating Grafana volumes...'
+    - sudo docker volume create grafana-storage || docker volume create grafana-storage || echo 'Volume already exists'
+    
+    - echo '✓ Grafana prepared successfully'
+    
   only:
     - main
     - develop
@@ -305,28 +366,162 @@ deploy_mysql_vm1:
     - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
     - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;"
     
-    - echo '✅ MySQL 5.7 deployed on port 3307'
+    - echo '✓ MySQL 5.7 deployed on port 3307'
   
   only:
     - main
     - develop
     - merge_requests
 
+# NEW: Deploy Grafana
+deploy_grafana_vm1:
+  stage: deploy
+  script:
+    - echo '📊 Deploying Grafana to VM1...'
+    
+    # Stop any existing Grafana container
+    - echo 'Stopping existing Grafana container...'
+    - sudo docker stop grafana 2>/dev/null || docker stop grafana 2>/dev/null || echo 'No existing Grafana to stop'
+    - sudo docker rm grafana 2>/dev/null || docker rm grafana 2>/dev/null || echo 'No existing Grafana to remove'
+    
+    # Ensure Grafana directories exist
+    - echo 'Creating Grafana directories...'
+    - mkdir -p local/grafana/config/datasources
+    - mkdir -p local/grafana/dashboards
+    
+    # Create MySQL datasource configuration dynamically
+    - echo 'Creating MySQL datasource configuration...'
+    - |
+      cat > local/grafana/config/datasources/mysql.yml << EOF
+      apiVersion: 1
+      datasources:
+        - name: MySQL-KeyPool
+          type: mysql
+          access: proxy
+          url: host.docker.internal:${MYSQL_PORT}
+          user: ${MYSQL_USER}
+          database: ${MYSQL_DATABASE}
+          basicAuth: false
+          isDefault: true
+          jsonData:
+            maxOpenConns: 0
+            maxIdleConns: 2
+            connMaxLifetime: 14400
+            timezone: "browser"
+          secureJsonData:
+            password: ${MYSQL_PASSWORD}
+          editable: true
+      EOF
+    
+    # Create dashboard provider configuration
+    - echo 'Creating dashboard provider configuration...'
+    - |
+      cat > local/grafana/dashboards/dashboard.yml << EOF
+      apiVersion: 1
+      providers:
+        - name: 'KeyPool Logs Dashboard'
+          orgId: 1
+          folder: ''
+          folderUid: ''
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 10
+          allowUiUpdates: true
+          options:
+            path: /etc/grafana/provisioning/dashboards
+      EOF
+    
+    # Start Grafana container
+    - echo 'Starting Grafana container...'
+    - |
+      sudo docker run -d \
+        --name grafana \
+        --restart unless-stopped \
+        -p ${GRAFANA_PORT}:3000 \
+        -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
+        -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
+        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
+        -e GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_PORT} \
+        -e GF_SECURITY_ALLOW_EMBEDDING=true \
+        -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
+        -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
+        -v grafana-storage:/var/lib/grafana \
+        --add-host=host.docker.internal:host-gateway \
+        grafana/grafana:latest || \
+      docker run -d \
+        --name grafana \
+        --restart unless-stopped \
+        -p ${GRAFANA_PORT}:3000 \
+        -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
+        -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
+        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
+        -e GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_PORT} \
+        -e GF_SECURITY_ALLOW_EMBEDDING=true \
+        -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
+        -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
+        -v grafana-storage:/var/lib/grafana \
+        --add-host=host.docker.internal:host-gateway \
+        grafana/grafana:latest
+    
+    # Wait for Grafana to be ready
+    - echo 'Waiting for Grafana to initialize...'
+    - sleep 15
+    
+    # Verify Grafana is running
+    - echo 'Verifying Grafana status...'
+    - sudo docker ps | grep grafana || docker ps | grep grafana
+    
+    # Check Grafana health
+    - echo 'Checking Grafana health...'
+    - curl -f http://localhost:${GRAFANA_PORT}/api/health || echo 'Grafana health check failed (might need more time)'
+    
+    # Show Grafana logs
+    - echo 'Recent Grafana logs:'
+    - sudo docker logs --tail 20 grafana || docker logs --tail 20 grafana
+    
+    # Test MySQL connection from Grafana container
+    - echo 'Testing MySQL connectivity from Grafana...'
+    - |
+      sudo docker exec grafana sh -c "nc -zv host.docker.internal ${MYSQL_PORT}" || \
+      docker exec grafana sh -c "nc -zv host.docker.internal ${MYSQL_PORT}" || \
+      echo 'MySQL connectivity test failed'
+    
+    - echo '✅ Grafana deployed successfully!'
+    - echo "📊 Access Grafana at:\ http://localhost:${GRAFANA_PORT}"
+    - echo "👤 Username:\ ${GRAFANA_ADMIN_USER}"
+    - echo "🔑 Password:\ ${GRAFANA_ADMIN_PASSWORD}"
+    
+  dependencies:
+    - build_grafana
+    - deploy_mysql_vm1
+  only:
+    - main
+    - develop
+    - merge_requests
+
+
 # Verify deployment - check both containers are running
 verify_deployment:
   stage: deploy
   script:
-    - echo 'Verifying both containers are running...'
+    - echo 'Verifying all containers are running...'
     
-    # Check VM1 container
+    # Check VM1 containers
+    - echo '=== Checking VM1 containers ==='
     - echo 'Checking log_processor on VM1...'
     - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
     - sudo docker logs --tail 10 log_processor_container || docker logs --tail 10 log_processor_container
-    - sudo docker ps | grep keypool_mysql ||  docker ps | grep keypool_mysql  
-    - sudo docker logs --tail 30 keypool_mysql || docker logs --tail 30 keypool_mysql 
-
-
+    
+    - echo 'Checking MySQL on VM1...'
+    - sudo docker ps | grep keypool_mysql || docker ps | grep keypool_mysql  
+    - sudo docker logs --tail 10 keypool_mysql || docker logs --tail 10 keypool_mysql
+    
+    - echo 'Checking Grafana on VM1...'
+    - sudo docker ps | grep grafana || docker ps | grep grafana
+    - sudo docker logs --tail 10 grafana || docker logs --tail 10 grafana
+    
     # Check VM2 container
+    - echo '=== Checking VM2 container ==='
     - echo 'Checking log_collector on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         echo "Container status on VM2:";
@@ -335,14 +530,32 @@ verify_deployment:
         docker logs --tail 10 log_collector_container;
       '
     
-    - echo '✓ Deployment verification complete'
-    - echo 'three containers should be running and logging messages every 30 seconds'
+    # Verify data flow
+    - echo '=== Verifying data flow ==='
+    - echo 'Checking if data is being stored in MySQL...'
+    - |
+      docker exec keypool_mysql mysql \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
+        ${MYSQL_DATABASE} \
+        -e "SELECT COUNT(*) as total_logs FROM logs_data;" || echo 'No logs_data table yet'
+    
+    # Test Grafana API
+    - echo '=== Testing Grafana API ==='
+    - curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} http://localhost:${GRAFANA_PORT}/api/datasources | python3 -m json.tool || echo 'Grafana API test failed'
+    
+    - echo '✅ Deployment verification complete'
+    - echo '📊 System Overview:'
+    - echo '  - Log Collector (VM2):\ Generating logs on port 8080'
+    - echo '  - Log Processor (VM1):\ Processing logs and storing in MySQL'
+    - echo '  - MySQL (VM1):\ Storing processed logs on port ${MYSQL_PORT}'
+    - echo '  - Grafana (VM1):\ Visualizing data on port ${GRAFANA_PORT}'
     
   dependencies:
     - deploy_log_processor_vm1
     - deploy_log_collector_vm2
     - deploy_mysql_vm1
-
+    - deploy_grafana_vm1
   only:
     - main
     - develop
@@ -352,16 +565,15 @@ stop_all_containers:
   stage: stop
   script:
     - echo '========================================='
-    - echo 'EXPORTING LOGS BEFORE STOPPING CONTAINERS'
+    - echo 'EXPORTING DATA BEFORE STOPPING CONTAINERS'
     - echo '========================================='
     
-    # === FORCE IMMEDIATE LOG DOWNLOAD ===
+    # Force immediate log download
     - echo ''
     - echo '=== Forcing immediate log download from VM2 to VM1 ==='
     - |
       if sudo docker ps | grep -q log_processor_container || docker ps | grep -q log_processor_container; then
         echo "Triggering immediate download by sending signal to container..."
-        # Give it a moment to complete any ongoing downloads
         sleep 5
         echo "Waiting 15 seconds for downloads to complete..."
         sleep 15
@@ -371,177 +583,225 @@ stop_all_containers:
     - mkdir -p artifacts/vm1_downloaded_logs
     - mkdir -p artifacts/vm2_generated_logs
     - mkdir -p artifacts/container_logs
+    - mkdir -p artifacts/grafana
+    - mkdir -p artifacts/database
     
-    # === EXPORT LOGS FROM VM1 ===
+    # Export logs from VM1
     - echo ''
     - echo '=== Exporting logs from VM1 (log_processor) ==='
-    
-    # Copy downloaded logs from log_processor container
     - |
       if sudo docker ps -a | grep -q log_processor_container; then
         echo "Copying downloaded logs from log_processor container..."
         sudo docker cp log_processor_container:/app/downloaded_logs/. artifacts/vm1_downloaded_logs/ 2>/dev/null || \
         docker cp log_processor_container:/app/downloaded_logs/. artifacts/vm1_downloaded_logs/ 2>/dev/null || \
-        echo "⚠ No downloaded logs found in VM1"
+        echo "⚠️  No downloaded logs found in VM1"
         
         echo "Copying processed files tracking log..."
         sudo docker cp log_processor_container:/app/downloaded_logs/.processed_files.txt artifacts/vm1_downloaded_logs/ 2>/dev/null || \
         docker cp log_processor_container:/app/downloaded_logs/.processed_files.txt artifacts/vm1_downloaded_logs/ 2>/dev/null || \
-        echo "⚠ No processed files log found"
+        echo "⚠️  No processed files log found"
         
         echo "Saving VM1 container logs..."
         sudo docker logs log_processor_container > artifacts/container_logs/vm1_log_processor.log 2>&1 || \
         docker logs log_processor_container > artifacts/container_logs/vm1_log_processor.log 2>&1 || \
-        echo "⚠ Could not export VM1 container logs"
+        echo "⚠️  Could not export VM1 container logs"
       else
-        echo "⚠ log_processor_container not found on VM1"
+        echo "⚠️  log_processor_container not found on VM1"
       fi
     
-    # === EXPORT LOGS FROM VM2 ===
+    # Export logs from VM2
     - echo ''
     - echo '=== Exporting logs from VM2 (log_collector) ==='
-    
-    # Copy generated logs from log_collector container via SSH
     - |
       if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 starion@192.168.0.11 'docker ps -a | grep -q log_collector_container'; then
         echo "Copying generated logs from log_collector container on VM2..."
         
-        # Copy logs from container to temp directory on VM2
         ssh -o StrictHostKeyChecking=no starion@192.168.0.11 "
           mkdir -p /tmp/vm2_export_logs && \
           docker cp log_collector_container:/app/logs/. /tmp/vm2_export_logs/ 2>/dev/null || \
           echo 'No logs in container'
-        " || echo "⚠ Failed to copy from VM2 container"
+        " || echo "⚠️  Failed to copy from VM2 container"
         
-        # Transfer logs from VM2 to VM1
         scp -r -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
           starion@192.168.0.11:/tmp/vm2_export_logs/* \
-          artifacts/vm2_generated_logs/ 2>/dev/null || echo "⚠ No generated logs found in VM2"
+          artifacts/vm2_generated_logs/ 2>/dev/null || echo "⚠️  No generated logs found in VM2"
         
-        # Save VM2 container logs
         echo "Saving VM2 container logs..."
         ssh -o StrictHostKeyChecking=no starion@192.168.0.11 \
           "docker logs log_collector_container" > artifacts/container_logs/vm2_log_collector.log 2>&1 || \
-          echo "⚠ Could not export VM2 container logs"
+          echo "⚠️  Could not export VM2 container logs"
         
-        # Cleanup temp directory on VM2
         ssh -o StrictHostKeyChecking=no starion@192.168.0.11 "rm -rf /tmp/vm2_export_logs" || true
       else
-        echo "⚠ log_collector_container not found on VM2"
+        echo "⚠️  log_collector_container not found on VM2"
       fi
     
-    # === CREATE SUMMARY REPORT ===
+    # Export Grafana data
+    - echo ''
+    - echo '=== Exporting Grafana data ==='
+    - |
+      if sudo docker ps -a | grep -q grafana; then
+        echo "Exporting Grafana dashboards..."
+        
+        # Export dashboards via API
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
+          > artifacts/grafana/dashboard_export.json 2>/dev/null || \
+          echo "⚠️  Could not export dashboard"
+        
+        # Export datasources
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/datasources \
+          > artifacts/grafana/datasources.json 2>/dev/null || \
+          echo "⚠️  Could not export datasources"
+        
+        # Save Grafana container logs
+        echo "Saving Grafana container logs..."
+        sudo docker logs grafana > artifacts/container_logs/grafana.log 2>&1 || \
+        docker logs grafana > artifacts/container_logs/grafana.log 2>&1 || \
+        echo "⚠️  Could not export Grafana logs"
+        
+        # Take screenshot of metrics if possible (requires additional tools)
+        echo "Grafana metrics saved to artifacts/grafana/"
+      else
+        echo "⚠️  Grafana container not found"
+      fi
+    
+    # Export Database
+    - echo ''
+    - echo '=== Exporting Database ==='
+    - |
+      if sudo docker ps -a | grep -q keypool_mysql || docker ps -a | grep -q keypool_mysql; then
+        docker exec keypool_mysql mysqldump \
+          -u ${MYSQL_USER} \
+          -p${MYSQL_PASSWORD} \
+          ${MYSQL_DATABASE} \
+          > artifacts/database/keypool_logs_backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null || \
+          echo "⚠️  Could not export database"
+        
+        # Export table statistics
+        docker exec keypool_mysql mysql \
+          -u ${MYSQL_USER} \
+          -p${MYSQL_PASSWORD} \
+          ${MYSQL_DATABASE} \
+          -e "SELECT 'logs_data' as Table_Name, COUNT(*) as Records FROM logs_data;" \
+          > artifacts/database/table_stats.txt 2>/dev/null || echo "⚠️  No stats"
+      else
+        echo "⚠️  MySQL container not found"
+      fi
+    
+    # Create summary report
     - echo ''
     - echo '=== Creating summary report ==='
     - |
-      cat > artifacts/LOGS_SUMMARY.txt << EOF
+      cat > artifacts/SUMMARY_REPORT.txt << EOF
       =========================================================
-                    LOG EXPORT SUMMARY
+                    SYSTEM SHUTDOWN SUMMARY
       =========================================================
       Export Date:     $(date '+%Y-%m-%d %H:%M:%S %Z')
       Pipeline ID:     $CI_PIPELINE_ID
       Job ID:          $CI_JOB_ID
       Commit SHA:      $CI_COMMIT_SHA
-      Short SHA:       $CI_COMMIT_SHORT_SHA
       Branch:          $CI_COMMIT_REF_NAME
       Triggered by:    $GITLAB_USER_LOGIN
       =========================================================
       
-      VM1 - DOWNLOADED LOGS (log_processor):
+      COMPONENTS STATUS:
       ---------------------------------------------------------
-      $(ls -lh artifacts/vm1_downloaded_logs/ 2>/dev/null | tail -n +2 || echo "No files found")
+      VM1 Components:
+        - Log Processor: $(sudo docker ps | grep -q log_processor_container && echo "✅ Running" || echo "❌ Stopped")
+        - MySQL:         $(sudo docker ps | grep -q keypool_mysql && echo "✅ Running" || echo "❌ Stopped")
+        - Grafana:       $(sudo docker ps | grep -q grafana && echo "✅ Running" || echo "❌ Stopped")
       
-      Total files: $(find artifacts/vm1_downloaded_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
-      Total size:  $(du -sh artifacts/vm1_downloaded_logs/ 2>/dev/null | cut -f1 || echo "0")
-      
-      Processed files list:
-      $(cat artifacts/vm1_downloaded_logs/.processed_files.txt 2>/dev/null || echo "No processed files log")
+      VM2 Components:
+        - Log Collector: $(ssh -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep -q log_collector_container' 2>/dev/null && echo "✅ Running" || echo "❌ Stopped/Unreachable")
       
       =========================================================
       
-      VM2 - GENERATED LOGS (log_collector):
+      DATA EXPORTED:
       ---------------------------------------------------------
-      $(ls -lh artifacts/vm2_generated_logs/ 2>/dev/null | tail -n +2 || echo "No files found")
+      VM1 Downloaded Logs:
+      $(ls -lh artifacts/vm1_downloaded_logs/ 2>/dev/null | tail -n +2 | head -5 || echo "No files found")
+      Total: $(find artifacts/vm1_downloaded_logs/ -type f -name "*.log" 2>/dev/null | wc -l) files
       
-      Total files: $(find artifacts/vm2_generated_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
-      Total size:  $(du -sh artifacts/vm2_generated_logs/ 2>/dev/null | cut -f1 || echo "0")
+      VM2 Generated Logs:
+      $(ls -lh artifacts/vm2_generated_logs/ 2>/dev/null | tail -n +2 | head -5 || echo "No files found")
+      Total: $(find artifacts/vm2_generated_logs/ -type f -name "*.log" 2>/dev/null | wc -l) files
       
-      =========================================================
+      Database Backup:
+      $(ls -lh artifacts/database/*.sql 2>/dev/null | tail -n +2 || echo "No backup found")
       
-      CONTAINER LOGS:
-      ---------------------------------------------------------
-      $(ls -lh artifacts/container_logs/ 2>/dev/null | tail -n +2 || echo "No container logs")
+      Grafana Exports:
+      $(ls -lh artifacts/grafana/ 2>/dev/null | tail -n +2 || echo "No exports found")
+      
+      Container Logs:
+      $(ls -lh artifacts/container_logs/ 2>/dev/null | tail -n +2 || echo "No logs found")
       
       =========================================================
       
       STATISTICS:
       ---------------------------------------------------------
-      Total log files exported:     $(find artifacts/ -type f -name "*.log" 2>/dev/null | wc -l)
-      Total artifacts size:         $(du -sh artifacts/ 2>/dev/null | cut -f1 || echo "0")
-      VM1 downloaded logs count:    $(find artifacts/vm1_downloaded_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
-      VM2 generated logs count:     $(find artifacts/vm2_generated_logs/ -type f -name "*.log" 2>/dev/null | wc -l)
+      Total artifacts size: $(du -sh artifacts/ 2>/dev/null | cut -f1 || echo "0")
+      Database records:     $(cat artifacts/database/table_stats.txt 2>/dev/null | grep logs_data | awk '{print $4}' || echo "N/A")
       
       =========================================================
       EOF
     
     - echo ''
-    - echo '=== SUMMARY REPORT ==='
-    - cat artifacts/LOGS_SUMMARY.txt
+    - cat artifacts/SUMMARY_REPORT.txt
     - echo ''
-    - echo '✓ Logs exported successfully to artifacts/'
+    - echo '✅ All data exported successfully to artifacts/'
     
-    # === NOW STOP THE CONTAINERS ===
+    # NOW STOP ALL CONTAINERS
     - echo ''
     - echo '========================================='
-    - echo 'STOPPING CONTAINERS'
+    - echo 'STOPPING ALL CONTAINERS'
     - echo '========================================='
-      
-    # Stop VM1 container
+    
+    # Stop VM1 containers
     - echo ''
-    - echo '=== Stopping VM1 container ==='
-    - sudo docker stop log_processor_container || docker stop log_processor_container || echo '⚠ VM1 container was not running'
-    - sudo docker rm log_processor_container || docker rm log_processor_container || echo '⚠ VM1 container was already removed'
+    - echo '=== Stopping VM1 containers ==='
+    - echo 'Stopping log_processor...'
+    - sudo docker stop log_processor_container || docker stop log_processor_container || echo '⚠️  log_processor was not running'
+    - sudo docker rm log_processor_container || docker rm log_processor_container || echo '⚠️  log_processor was already removed'
+    
+    - echo 'Stopping MySQL...'
+    - sudo docker stop keypool_mysql || docker stop keypool_mysql || echo '⚠️  MySQL was not running'
+    - sudo docker rm keypool_mysql || docker rm keypool_mysql || echo '⚠️  MySQL was already removed'
+    
+    - echo 'Stopping Grafana...'
+    - sudo docker stop grafana || docker stop grafana || echo '⚠️  Grafana was not running'
+    - sudo docker rm grafana || docker rm grafana || echo '⚠️  Grafana was already removed'
     
     # Stop VM2 container
     - echo ''
     - echo '=== Stopping VM2 container ==='
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
-        docker stop log_collector_container || echo "⚠ VM2 container was not running";
-        docker rm log_collector_container || echo "⚠ VM2 container was already removed";
-      '
+        docker stop log_collector_container || echo "⚠️  log_collector was not running";
+        docker rm log_collector_container || echo "⚠️  log_collector was already removed";
+      ' || echo '⚠️  Could not connect to VM2'
     
     # Final verification
     - echo ''
     - echo '=== Final verification ==='
-    - echo 'VM1 container status:'
-    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container || echo '✓ VM1 container stopped'
+    - echo 'VM1 containers status:'
+    - sudo docker ps | grep -E "(log_processor|keypool_mysql|grafana)" || docker ps | grep -E "(log_processor|keypool_mysql|grafana)" || echo '✅ All VM1 containers stopped'
+    - echo ''
     - echo 'VM2 container status:'
-    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "✓ VM2 container stopped"'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "✅ VM2 container stopped"' || echo '⚠️  Could not verify VM2'
     
     - echo ''
     - echo '========================================='
-    - echo '✅ All containers stopped successfully'
-    - echo '📦 Logs saved as artifacts - check Downloads'
+    - echo '✅ ALL CONTAINERS STOPPED SUCCESSFULLY'
+    - echo '📦 All data saved to artifacts/'
     - echo '========================================='
   
-    - echo ''
-    - echo '=== Exporting Database ==='
-    - mkdir -p artifacts/database
-    - |
-      docker exec keypool_mysql mysqldump \
-        -u keypool_user \
-        -pkeypool_password \
-        keypool_logs \
-        > artifacts/database/keypool_logs_backup.sql
-    
-    - ls -lah artifacts/database/
-
   artifacts:
-    name: "logs-stop-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
+    name: "system-shutdown-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
     paths:
       - artifacts/
-    expire_in: 30 days 
-    when: always  
+    expire_in: 30 days
+    when: always
   
   when: manual
   allow_failure: true
@@ -550,61 +810,54 @@ stop_all_containers:
     - develop
     - merge_requests
 
-
+# Export database separately (can be run without stopping containers)
 export_database:
-  stage: stop  # O crea un nuevo stage "export"
+  stage: stop
   script:
-    - echo 'Exporting database...'
+    - echo '📊 Exporting database without stopping services...'
     - mkdir -p artifacts/database
+    - mkdir -p artifacts/database/csv
     
-    # Export completo (estructura + datos)
+    # Full database dump
     - echo 'Creating full database dump...'
     - |
       docker exec keypool_mysql mysqldump \
-        -u keypool_user \
-        -pkeypool_password \
-        keypool_logs \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
+        ${MYSQL_DATABASE} \
         > artifacts/database/keypool_logs_full_$(date +%Y%m%d_%H%M%S).sql
     
-    # Export solo estructura (sin datos)
+    # Schema only dump
     - echo 'Creating schema-only dump...'
     - |
       docker exec keypool_mysql mysqldump \
-        -u keypool_user \
-        -pkeypool_password \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
         --no-data \
-        keypool_logs \
-        > artifacts/database/keypool_logs_schema_$(date +%Y%m%d_%H%M%S).sql
+        ${MYSQL_DATABASE} \
+        > artifacts/database/keypool_logs_schema.sql
     
-    # Export solo datos (sin estructura)
+    # Data only dump
     - echo 'Creating data-only dump...'
     - |
       docker exec keypool_mysql mysqldump \
-        -u keypool_user \
-        -pkeypool_password \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
         --no-create-info \
-        keypool_logs \
-        > artifacts/database/keypool_logs_data_$(date +%Y%m%d_%H%M%S).sql
+        ${MYSQL_DATABASE} \
+        > artifacts/database/keypool_logs_data.sql
     
-    # Export en CSV para cada tabla
-    - echo 'Exporting tables to CSV...'
-    - mkdir -p artifacts/database/csv
+    # Export to CSV
+    - echo 'Exporting to CSV format...'
     - |
-      for table in key_creations sync_latency_metrics key_count_metrics controller_syncs processed_files; do
-        docker exec keypool_mysql mysql \
-          -u keypool_user \
-          -pkeypool_password \
-          keypool_logs \
-          -e "SELECT * FROM $table INTO OUTFILE '/tmp/${table}.csv' 
-              FIELDS TERMINATED BY ',' 
-              ENCLOSED BY '\"' 
-              LINES TERMINATED BY '\n';" 2>/dev/null || echo "Table $table export failed"
-        
-        docker cp keypool_mysql:/tmp/${table}.csv artifacts/database/csv/ 2>/dev/null || echo "No data in $table"
-        docker exec keypool_mysql rm /tmp/${table}.csv 2>/dev/null || true
-      done
+      docker exec keypool_mysql mysql \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
+        ${MYSQL_DATABASE} \
+        -e "SELECT * FROM logs_data" \
+        | tr '\t' ',' > artifacts/database/csv/logs_data.csv 2>/dev/null || echo "No data to export"
     
-    # Create database info file
+    # Database statistics
     - |
       cat > artifacts/database/DB_INFO.txt << EOF
       =========================================================
@@ -615,39 +868,34 @@ export_database:
       Commit SHA:      $CI_COMMIT_SHORT_SHA
       Branch:          $CI_COMMIT_REF_NAME
       
-      DATABASE CREDENTIALS:
+      DATABASE CONNECTION:
       ---------------------
-      Host:            127.0.0.1 (or keypool_mysql container)
-      Port:            3307
-      Database:        keypool_logs
-      User:            keypool_user
-      Password:        keypool_password
-      Root Password:   root_password_change_me
+      Host:            localhost / host.docker.internal
+      Port:            ${MYSQL_PORT}
+      Database:        ${MYSQL_DATABASE}
+      User:            ${MYSQL_USER}
+      Password:        ${MYSQL_PASSWORD}
       
       FILES INCLUDED:
       ---------------
-      - keypool_logs_full_*.sql       (Complete dump)
-      - keypool_logs_schema_*.sql     (Structure only)
-      - keypool_logs_data_*.sql       (Data only)
-      - csv/*.csv                     (Individual tables in CSV)
+      - keypool_logs_full_*.sql    (Complete database dump)
+      - keypool_logs_schema.sql    (Structure only)
+      - keypool_logs_data.sql      (Data only)
+      - csv/logs_data.csv          (CSV export)
       
       RESTORE INSTRUCTIONS:
       ---------------------
       # Full restore:
-      mysql -u keypool_user -pkeypool_password keypool_logs < keypool_logs_full_*.sql
+      mysql -h localhost -P ${MYSQL_PORT} -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} < keypool_logs_full_*.sql
       
       # Or with Docker:
-      docker exec -i keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs < keypool_logs_full_*.sql
+      docker exec -i keypool_mysql mysql -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} < keypool_logs_full_*.sql
       
       TABLE STATISTICS:
       -----------------
-      $(docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "
-      SELECT 'key_creations' as Table_Name, COUNT(*) as Records FROM key_creations
-      UNION ALL SELECT 'sync_latency_metrics', COUNT(*) FROM sync_latency_metrics
-      UNION ALL SELECT 'key_count_metrics', COUNT(*) FROM key_count_metrics
-      UNION ALL SELECT 'controller_syncs', COUNT(*) FROM controller_syncs
-      UNION ALL SELECT 'processed_files', COUNT(*) FROM processed_files;
-      ")
+      $(docker exec keypool_mysql mysql -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "
+      SELECT 'logs_data' as Table_Name, COUNT(*) as Records FROM logs_data;
+      " 2>/dev/null || echo "No statistics available")
       =========================================================
       EOF
     
@@ -659,12 +907,118 @@ export_database:
     name: "database-export-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
     paths:
       - artifacts/database/
-    expire_in: 90 days  
+    expire_in: 90 days
     when: always
   
-  when: manual  
+  when: manual
   allow_failure: true
   only:
     - main
     - develop
     - merge_requests
+
+# Export Grafana dashboards and config separately
+export_grafana:
+  stage: stop
+  script:
+    - echo '📊 Exporting Grafana configuration and dashboards...'
+    - mkdir -p artifacts/grafana
+    - mkdir -p artifacts/grafana/dashboards
+    - mkdir -p artifacts/grafana/datasources
+    - mkdir -p artifacts/grafana/screenshots
+    
+    # Check if Grafana is running
+    - |
+      if ! (sudo docker ps | grep -q grafana || docker ps | grep -q grafana); then
+        echo "⚠️  Grafana is not running. Attempting to export saved configurations only..."
+      else
+        echo "✅ Grafana is running. Exporting live configuration..."
+        
+        # Export all dashboards
+        echo 'Exporting dashboards via API...'
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/search?type=dash-db \
+          > artifacts/grafana/all_dashboards.json
+        
+        # Export specific dashboard
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/dashboards/uid/keypool-logs-001 \
+          > artifacts/grafana/dashboards/keypool-dashboard.json
+        
+        # Export datasources
+        echo 'Exporting datasources...'
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/datasources \
+          > artifacts/grafana/datasources/all_datasources.json
+        
+        # Export alerts (if any)
+        echo 'Exporting alerts...'
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/alerts \
+          > artifacts/grafana/alerts.json 2>/dev/null || echo "No alerts configured"
+        
+        # Export org preferences
+        curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} \
+          http://localhost:${GRAFANA_PORT}/api/org/preferences \
+          > artifacts/grafana/org_preferences.json
+      fi
+    
+    # Copy static configuration files
+    - echo 'Copying static configuration files...'
+    - cp local/grafana/dashboards/keypool-logs-dashboard.json artifacts/grafana/dashboards/keypool-logs-dashboard-static.json 2>/dev/null || echo "No static dashboard"
+    - cp local/grafana/config/datasources/mysql.yml artifacts/grafana/datasources/mysql-static.yml 2>/dev/null || echo "No static datasource"
+    
+    # Create Grafana info file
+    - |
+      cat > artifacts/grafana/GRAFANA_INFO.txt << EOF
+      =========================================================
+                    GRAFANA EXPORT INFO
+      =========================================================
+      Export Date:     $(date '+%Y-%m-%d %H:%M:%S %Z')
+      Pipeline ID:     $CI_PIPELINE_ID
+      Commit SHA:      $CI_COMMIT_SHORT_SHA
+      Branch:          $CI_COMMIT_REF_NAME
+      
+      GRAFANA ACCESS:
+      ---------------------
+      URL:             http://localhost:${GRAFANA_PORT}
+      Username:        ${GRAFANA_ADMIN_USER}
+      Password:        ${GRAFANA_ADMIN_PASSWORD}
+      
+      MYSQL DATASOURCE:
+      ---------------------
+      Host:            host.docker.internal
+      Port:            ${MYSQL_PORT}
+      Database:        ${MYSQL_DATABASE}
+      User:            ${MYSQL_USER}
+      
+      FILES EXPORTED:
+      ---------------
+      $(ls -la artifacts/grafana/ 2>/dev/null | tail -n +2 || echo "No files")
+      
+      IMPORT INSTRUCTIONS:
+      ---------------------
+      1. Start Grafana container
+      2. Access Grafana at http://localhost:${GRAFANA_PORT}
+      3. Login with credentials above
+      4. Import dashboard from JSON file
+      5. Configure MySQL datasource if needed
+      
+      =========================================================
+      EOF
+    
+    - cat artifacts/grafana/GRAFANA_INFO.txt
+    - echo '✅ Grafana configuration exported successfully'
+  
+  artifacts:
+    name: "grafana-export-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID"
+    paths:
+      - artifacts/grafana/
+    expire_in: 30 days
+    when: always
+  
+  when: manual
+  allow_failure: true
+  only:
+    - main
+    - develop
