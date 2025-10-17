@@ -205,6 +205,7 @@
         "type": "mysql",
         "uid": "PBE6F30E16AE37FD9"
       },
+      "description": "This panel calculates what percentage of your total logs were created in the last hour.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -269,7 +270,7 @@
           "refId": "A"
         }
       ],
-      "title": "% Logs Last Hour",
+      "title": "Last Hour vs Total (%)",
       "type": "gauge"
     },
     {
@@ -486,7 +487,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
             "axisBorderShow": false,
@@ -509,6 +510,7 @@
               "mode": "off"
             }
           },
+          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -521,7 +523,32 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "value"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 10,
@@ -585,10 +612,18 @@
               {
                 "color": "green",
                 "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 2
               }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -624,10 +659,28 @@
             "type": "mysql",
             "uid": "PBE6F30E16AE37FD9"
           },
+          "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
           "rawSql": "SELECT COUNT(*) as value, NOW() as time FROM key_creations",
-          "refId": "A"
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Total Processed Logs",
@@ -1246,5 +1299,5 @@
   "timezone": "",
   "title": "KeyPool Logs Dashboard - Enhanced",
   "uid": "keypool-logs-enhanced",
-  "version": 15
+  "version": 18
 }
