@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+OGS Data Generator
+Generates synthetic data for Optical Ground Station monitoring
+"""
 import json
 import random
 import time
@@ -14,36 +18,53 @@ OUTPUT_DIR = "./synthetic_data"
 PRINT_ONLY = False  # If False, will save to JSON files
 UPDATE_INTERVAL = 5  # seconds between updates
 
+
 # ---------------------------------------------------------
 # Utility Functions
 # ---------------------------------------------------------
 def now():
+    """Return current UTC time in ISO format"""
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
+
 def randfloat(base, variance):
+    """Generate random float around base value with variance"""
     return round(base + random.uniform(-variance, variance), 2)
 
+
 def randint(base, variance):
+    """Generate random int around base value with variance"""
     return base + random.randint(-variance, variance)
 
+
 def save_json(filename, data):
+    """Save data to JSON file or print to console"""
     if PRINT_ONLY:
         print(f"\n--- {filename} ---")
         print(json.dumps(data, indent=2))
     else:
-        with open(f"{OUTPUT_DIR}/{filename}", "w") as f:
-            json.dump(data, f, indent=2)
+        with open(
+            f"{OUTPUT_DIR}/{filename}",
+            "w",
+            encoding='utf-8'
+        ) as file:
+            json.dump(data, file, indent=2)
+
 
 # ---------------------------------------------------------
 # Payload Generators
 # ---------------------------------------------------------
 def generate_environment_status():
+    """Generate environment status data"""
     return {
         "timestamp": now(),
         "ogs_id": OGS_ID,
         "dome_status": {
             "is_open": random.choice([True, True, True, False]),
-            "last_opened": (datetime.utcnow() - timedelta(minutes=random.randint(0, 15))).isoformat() + "Z",
+            "last_opened": (
+                datetime.utcnow()
+                - timedelta(minutes=random.randint(0, 15))
+            ).isoformat() + "Z",
             "anomaly_detected": random.choice([False, False, False, True])
         },
         "weather": {
@@ -59,7 +80,9 @@ def generate_environment_status():
         }
     }
 
+
 def generate_link_status(pass_id):
+    """Generate link status data for a satellite pass"""
     qber = max(0.005, random.gauss(0.015, 0.005))
     return {
         "timestamp": now(),
@@ -67,7 +90,9 @@ def generate_link_status(pass_id):
         "link_status": {
             "quantum": {
                 "locked": random.random() > 0.05,
-                "tracking_status": random.choice(["TRACKING", "LOST", "LOCKED"]),
+                "tracking_status": random.choice(
+                    ["TRACKING", "LOST", "LOCKED"]
+                ),
                 "qber": round(qber, 4),
                 "link_power_margin_dB": randfloat(3.0, 0.8),
                 "received_power_dBm": randfloat(-43.5, 1.5),
@@ -81,12 +106,16 @@ def generate_link_status(pass_id):
         }
     }
 
+
 def generate_pass_summary(pass_id):
+    """Generate summary of a completed satellite pass"""
     lock_percentage = randfloat(95, 3)
     return {
         "pass_id": pass_id,
         "satellite_id": SATELLITE_ID,
-        "start_time": (datetime.utcnow() - timedelta(minutes=15)).isoformat() + "Z",
+        "start_time": (
+            datetime.utcnow() - timedelta(minutes=15)
+        ).isoformat() + "Z",
         "end_time": now(),
         "link_lock": {
             "total_duration_sec": 900,
@@ -119,17 +148,24 @@ def generate_pass_summary(pass_id):
         ])
     }
 
+
 def generate_alerts(pass_id):
+    """Generate alerts if conditions warrant"""
     if random.random() > 0.85:
         alert = {
             "timestamp": now(),
             "alert_id": str(uuid.uuid4()),
             "severity": random.choice(["warning", "critical"]),
             "severity_code": random.choice([2, 3]),
-            "component": random.choice(["weather_monitoring", "link_tracking", "dome_control"]),
+            "component": random.choice([
+                "weather_monitoring",
+                "link_tracking",
+                "dome_control"
+            ]),
             "component_id": f"SCU-{random.randint(1,3):02d}",
             "description": random.choice([
-                "Precipitation detected during satellite pass. Dome closed automatically.",
+                "Precipitation detected during satellite pass. "
+                "Dome closed automatically.",
                 "Lost tracking lock, attempting recovery.",
                 "High QBER detected, monitoring subsystem notified."
             ]),
@@ -143,7 +179,9 @@ def generate_alerts(pass_id):
         return alert
     return None
 
+
 def generate_pass_schedule():
+    """Generate schedule for upcoming satellite passes"""
     start = datetime.utcnow() + timedelta(minutes=10)
     end = start + timedelta(minutes=15)
     return {
@@ -166,10 +204,12 @@ def generate_pass_schedule():
         }]
     }
 
+
 # ---------------------------------------------------------
 # Main simulation loop
 # ---------------------------------------------------------
 def main():
+    """Main loop to generate synthetic OGS data"""
     schedule = generate_pass_schedule()
     pass_id = schedule["scheduled_passes"][0]["pass_id"]
 
@@ -187,6 +227,7 @@ def main():
         save_json("satellite_pass_schedule.json", schedule)
 
         time.sleep(UPDATE_INTERVAL)
+
 
 if __name__ == "__main__":
     main()

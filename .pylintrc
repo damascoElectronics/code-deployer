@@ -1,6 +1,5 @@
 [MASTER]
 load-plugins=pylint.extensions.docparams
-ignore=bad_example.py
 
 [MESSAGES CONTROL]
 disable=missing-module-docstring,
