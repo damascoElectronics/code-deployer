@@ -1,0 +1,147 @@
+
+
+# ================================
+# STAGE: SECURITY
+# ================================
+
+security:semgrep:
+  stage: security
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/{semgrep,security,badges}
+    
+    # Run Semgrep SAST scan
+    - echo "Running Semgrep SAST analysis..."
+    - semgrep --config=auto --json --output=reports/semgrep/semgrep-results.json --severity=INFO src/ || true
+    - semgrep --config=auto --output=reports/semgrep/semgrep-results.txt --severity=INFO src/ || true
+    - semgrep --config=auto --sarif --output=reports/semgrep/semgrep-results.sarif --severity=INFO src/ || true
+    
+    # Run custom security rules if available
+    - |
+      if [ -f "custom-security-rules.yml" ]; then
+        echo "Running custom security rules..."
+        semgrep --config=custom-security-rules.yml --json --output=reports/semgrep/custom-results.json src/ || true
+      fi
+    
+    # Run Supply Chain Analysis
+    - echo "Running Supply Chain Analysis..."
+    - semgrep --config=p/supply-chain --json --output=reports/semgrep/sca-results.json requirements.txt || true
+    - safety check --json --output=reports/security/safety-report.json || true
+    - safety check --output=reports/security/safety-report.txt || true
+    
+    # Run Secrets Detection
+    - echo "Running secrets detection..."
+    - semgrep --config=p/secrets --json --output=reports/semgrep/secrets-results.json . || true
+    
+    # Run Bandit for Python security
+    - echo "Running Bandit analysis..."
+    - bandit -r src/ -f json -o reports/security/bandit-results.json || true
+    - bandit -r src/ -f txt -o reports/security/bandit-results.txt || true
+    
+    # Analyze results and create summary
+    - |
+      echo "Analyzing security findings..."
+      
+      CRITICAL_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          critical = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'ERROR')
+          print(critical)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      HIGH_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          high = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'WARNING')
+          print(high)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      MEDIUM_COUNT=$(python3 -c "
+      import json
+      try:
+          with open('reports/semgrep/semgrep-results.json') as f:
+              data = json.load(f)
+          medium = sum(1 for r in data.get('results', []) if r.get('extra', {}).get('severity') == 'INFO')
+          print(medium)
+      except:
+          print(0)
+      " 2>/dev/null || echo "0")
+      
+      TOTAL_FINDINGS=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT))
+      
+      echo "Security Analysis Summary:"
+      echo "Critical: $CRITICAL_COUNT"
+      echo "High: $HIGH_COUNT"
+      echo "Medium: $MEDIUM_COUNT"
+      echo "Total: $TOTAL_FINDINGS"
+      
+      # Generate security summary
+      mkdir -p reports/security
+      cat > reports/security/summary.json << EOF
+      {
+        "total_findings": $TOTAL_FINDINGS,
+        "critical_count": $CRITICAL_COUNT,
+        "high_count": $HIGH_COUNT,
+        "medium_count": $MEDIUM_COUNT,
+        "security_gate_passed": $([ $CRITICAL_COUNT -eq 0 ] && [ $HIGH_COUNT -le $SEMGREP_MAX_HIGH ] && echo "true" || echo "false"),
+        "thresholds": {
+          "max_critical": $SEMGREP_MAX_CRITICAL,
+          "max_high": $SEMGREP_MAX_HIGH,
+          "max_medium": $SEMGREP_MAX_MEDIUM
+        },
+        "timestamp": "$(date -Iseconds)",
+        "tools_used": ["semgrep", "bandit", "safety"]
+      }
+      EOF
+      
+      # Generate security badge
+      if [ "$CRITICAL_COUNT" -eq 0 ] && [ "$HIGH_COUNT" -eq 0 ]; then
+          SECURITY_COLOR="brightgreen"
+          SECURITY_MESSAGE="secure"
+      elif [ "$CRITICAL_COUNT" -eq 0 ] && [ "$HIGH_COUNT" -le "$SEMGREP_MAX_HIGH" ]; then
+          SECURITY_COLOR="yellow"
+          SECURITY_MESSAGE="warnings"
+      else
+          SECURITY_COLOR="red"
+          SECURITY_MESSAGE="issues"
+      fi
+      
+      cat > reports/badges/security.json << EOF
+      {
+        "schemaVersion": 1,
+        "label": "security",
+        "message": "$SECURITY_MESSAGE",
+        "color": "$SECURITY_COLOR"
+      }
+      EOF
+      
+      # Output findings summary
+      if [ -f "reports/semgrep/semgrep-results.txt" ]; then
+          echo "=== Top Security Findings ==="
+          head -n 20 reports/semgrep/semgrep-results.txt || true
+      fi
+      
+  artifacts:
+    when: always
+    paths:
+      - reports/semgrep/
+      - reports/security/
+      - reports/badges/
+    reports:
+      sast: reports/semgrep/semgrep-results.sarif
+    expire_in: 1 week
+  allow_failure: false

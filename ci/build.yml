@@ -1,0 +1,23 @@
+
+# ================================
+# STAGE: BUILD
+# ================================
+
+build:
+  stage: build
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  script:
+    - echo "Building application..."
+    - python -m pip install --upgrade pip
+    - pip install build
+    - python -m build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  only:
+    - main
+    - develop

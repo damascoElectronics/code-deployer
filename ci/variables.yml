@@ -1,16 +1,16 @@
 # Global variables 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  COVERAGE_THRESHOLD: "80"
-  PYLINT_THRESHOLD: "8.0"
-  SEMGREP_MAX_CRITICAL: "0"
+  COVERAGE_THRESHOLD: "80"    # <-- score minimum tu pass is 8.0 for coverage test 
+  PYLINT_THRESHOLD: "8.0"     # <-- score minimum tu pass is 8.0 for code Quality style
+  SEMGREP_MAX_CRITICAL: "0" 
   SEMGREP_MAX_HIGH: "5"
   SEMGREP_MAX_MEDIUM: "10"
   NC: '\033[0m' # No Color
   # Regular Colors
-  RED: '\033[0;31m'        # Red
-  GREEN: '\033[0;32m'      # Green
+  RED: '\033[0;31m'           # Red
+  GREEN: '\033[0;32m'         # Green
   # Bold High Intensity
-  BIGreen: '\033[1;92m'      # Green
-  BRed: '\033[1;31m'         # Red
-  BBlue: '\033[1;34m'        # blue
+  BIGreen: '\033[1;92m'       # Green
+  BRed: '\033[1;31m'          # Red
+  BBlue: '\033[1;34m'         # blue
