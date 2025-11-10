@@ -1,5 +1,10 @@
 # .gitlab-ci.yml - Complete CI/CD pipeline with security analysis
 
+# external files.
+include:
+  - local: '/ci/variables.yml'
+  - local: '/ci/code-quality.yml'
+
 # stages
 stages:
   - lint
@@ -9,63 +14,6 @@ stages:
   - quality-gate
   - build
   - deploy
-
-# Global variables 
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  COVERAGE_THRESHOLD: "80"
-  PYLINT_THRESHOLD: "8.0"
-  SEMGREP_MAX_CRITICAL: "0"
-  SEMGREP_MAX_HIGH: "5"
-  SEMGREP_MAX_MEDIUM: "10"
-  NC: '\033[0m' # No Color
-  # Regular Colors
-  RED: '\033[0;31m'        # Red
-  GREEN: '\033[0;32m'      # Green
-  # Bold High Intensity
-  BIGreen: '\033[1;92m'      # Green
-  BRed: '\033[1;31m'         # Red
-  BBlue: '\033[1;34m'        # blue
-
-# Cache to speed up builds
-cache:
-  paths:
-    - .cache/pip/
-    - venv/
-
-# ================================
-# STAGE: LINT
-# ================================
-
-lint:pylint:
-  stage: lint
-  image: python:3.9
-  tags:
-    - code-quality
-    - static-analysis
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
-    - rm -rf .pylint_cache || true
-  script:
-    # Run pylint and generate reports
-    - mkdir -p reports/pylint
-    - pylint src/*.py --output-format=text --reports=y > reports/pylint/pylint-report.txt || true
-    - pylint src/*.py --output-format=json > reports/pylint/pylint-report.json || true
-    - pylint src/*.py --output-format=parseable > reports/pylint/pylint-parseable.txt || true    
-    
-    # Show summary in console
-    - echo "=== PYLINT SUMMARY ==="
-    - tail -n 20 reports/pylint/pylint-report.txt
-  
-    # Check for critical errors (optional)
-    - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
-  artifacts:
-    when: always
-    paths:
-      - reports/pylint
-    expire_in: 1 week
-  allow_failure: false
 
 # ================================
 # STAGE: TEST

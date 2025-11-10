@@ -1,0 +1,34 @@
+
+# ================================
+# STAGE: LINT
+# ================================
+
+lint:pylint:
+  stage: lint
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - rm -rf .pylint_cache || true
+  script:
+    # Run pylint and generate reports
+    - mkdir -p reports/pylint
+    - pylint src/*.py --output-format=text --reports=y > reports/pylint/pylint-report.txt || true
+    - pylint src/*.py --output-format=json > reports/pylint/pylint-report.json || true
+    - pylint src/*.py --output-format=parseable > reports/pylint/pylint-parseable.txt || true    
+    
+    # Show summary in console
+    - echo "=== PYLINT SUMMARY ==="
+    - tail -n 20 reports/pylint/pylint-report.txt
+  
+    # Check for critical errors (optional)
+    - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
+  artifacts:
+    when: always
+    paths:
+      - reports/pylint
+    expire_in: 1 week
+  allow_failure: false
