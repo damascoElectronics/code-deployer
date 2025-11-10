@@ -90,7 +90,7 @@ lint:python_syntax:
     
     # Create summary report
     - echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
-    - echo "Timestamp: $(date)" >> reports/syntax/summary.txt
+    - date >> reports/syntax/summary.txt
     - echo "" >> reports/syntax/summary.txt
     - echo "Files checked:" >> reports/syntax/summary.txt
     - echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
