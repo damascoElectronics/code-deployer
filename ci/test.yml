@@ -2,55 +2,6 @@
 # STAGE: TEST
 # ================================
 
-test:python_syntax:
-  stage: test
-  script:
-    - echo 'Starting Python syntax and compilation tests...'
-    - echo -e 'Python version'
-    - python3 --version
-    - echo 'Pip version'
-    - pip3 --version
-    
-    # Test Container 1 (log_processor)
-    - echo 'Testing log_processor Python syntax...'
-    - python3 -m py_compile src/local/log_processor/app.py
-    - echo 'log_processor/app.py syntax OK'
-    
-    # Test Container 2 (log_collector)  
-    - echo 'Testing log_collector Python syntax...'
-    - python3 -m py_compile src/remote/log_collector/app.py
-    - echo '✓ log_collector/app.py syntax OK'
-    
-    # Create virtual environment for testing dependencies
-    - echo 'Creating virtual environment...'
-    - python3 -m venv test_venv
-    - source test_venv/bin/activate
-    
-    # Install dependencies and test imports for log_processor
-    - echo 'Installing dependencies for log_processor...'
-    - cd src/local/log_processor
-    - pip install -r requirements.txt
-    - python3 -c "import time, logging, datetime; print('log_processor imports OK')"
-    - cd ../../../
-    
-    # Install dependencies and test imports for log_collector
-    - echo 'Installing dependencies for log_collector...'
-    - cd src/remote/log_collector  
-    - pip install -r requirements.txt
-    - python3 -c "import time, logging, datetime, os; print('log_collector imports OK')"
-    - cd ../../../
-    
-    # Test if scripts can run for a few seconds
-    - echo 'Testing if scripts can execute...'
-    - timeout 5 python3 src/local/log_processor/app.py || echo 'log_processor runs (timeout expected)'
-    - timeout 5 python3 src/remote/log_collector/app.py || echo 'log_collector runs (timeout expected)'
-    
-    # Cleanup
-    - deactivate || true
-    - rm -rf test_venv
-  
-  allow_failure: false
-
 
 test:unit:
   stage: test

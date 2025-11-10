@@ -38,3 +38,73 @@ lint:pylint:
       - reports/pylint
     expire_in: 1 week
   allow_failure: false
+
+lint:python_syntax:
+  stage: lint
+  image: python:3.9
+  tags:
+    - code-quality
+  script:
+    - echo 'Starting Python syntax and compilation tests...'
+    - echo 'Python version'
+    - python3 --version
+    - echo 'pip version'
+    - pip3 --version
+    
+    # Create reports directory
+    - mkdir -p reports/syntax
+    
+    # Test Container 1 (log_processor)
+    - echo 'Testing log_processor Python syntax...'
+    - python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log
+    - echo 'log_processor/app.py syntax OK'
+    
+    # Test Container 2 (log_collector)  
+    - echo 'Testing log_collector Python syntax...'
+    - python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log
+    - echo 'log_collector/app.py syntax OK'
+    
+    # Create virtual environment for testing dependencies
+    - echo 'Creating virtual environment...'
+    - python3 -m venv test_venv
+    - source test_venv/bin/activate
+    
+    # Install dependencies and test imports for log_processor
+    - echo 'Installing dependencies for log_processor...'
+    - cd src/local/log_processor
+    - pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_processor_pip_install.log
+    - python3 -c "import time, logging, datetime; print('log_processor imports OK')" 2>&1 | tee ../../../reports/syntax/log_processor_imports.log
+    - cd ../../../
+    
+    # Install dependencies and test imports for log_collector
+    - echo 'Installing dependencies for log_collector...'
+    - cd src/remote/log_collector  
+    - pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
+    - python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
+    - cd ../../../
+    
+    # Test if scripts can run for a few seconds
+    - echo 'Testing if scripts can execute...'
+    - timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo 'log_processor runs (timeout expected)'
+    - timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo 'log_collector runs (timeout expected)'
+    
+    # Create summary report
+    - echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
+    - echo "Timestamp: $(date)" >> reports/syntax/summary.txt
+    - echo "" >> reports/syntax/summary.txt
+    - echo "Files checked:" >> reports/syntax/summary.txt
+    - echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
+    - echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
+    - cat reports/syntax/summary.txt
+    
+    # Cleanup
+    - deactivate || true
+    - rm -rf test_venv
+  
+  artifacts:
+    when: always
+    paths:
+      - reports/syntax
+    expire_in: 1 week
+  
+  allow_failure: false
