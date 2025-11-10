@@ -31,14 +31,14 @@ test:python_syntax:
     - cd src/local/log_processor
     - pip install -r requirements.txt
     - python3 -c "import time, logging, datetime; print('log_processor imports OK')"
-    - cd ../../
+    - cd ../../../
     
     # Install dependencies and test imports for log_collector
     - echo 'Installing dependencies for log_collector...'
     - cd src/remote/log_collector  
     - pip install -r requirements.txt
     - python3 -c "import time, logging, datetime, os; print('log_collector imports OK')"
-    - cd ../../
+    - cd ../../../
     
     # Test if scripts can run for a few seconds
     - echo 'Testing if scripts can execute...'
@@ -48,6 +48,9 @@ test:python_syntax:
     # Cleanup
     - deactivate || true
     - rm -rf test_venv
+  
+  allow_failure: false
+
 
 test:unit:
   stage: test
