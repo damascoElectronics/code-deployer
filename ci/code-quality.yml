@@ -26,7 +26,9 @@ lint:pylint:
     
     # Show summary in console
     - echo "=== PYLINT SUMMARY ==="
-    - tail -n 20 reports/pylint/pylint-report.txt
+    - tail -n 20 reports/pylint/pylint-report_processor.txt
+    - tail -n 20 reports/pylint/pylint-parseable_collector.txt
+
   
     # Check for critical errors (optional)
     - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
