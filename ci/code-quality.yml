@@ -20,9 +20,9 @@ lint:pylint:
     - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
     - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
     
-    - pylint src/local/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
-    - pylint src/local/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
-    - pylint src/local/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
+    - pylint src/remote/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
+    - pylint src/remote/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
+    - pylint src/remote/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
     
     # Show summary in console
     - echo "=== PYLINT SUMMARY ==="
