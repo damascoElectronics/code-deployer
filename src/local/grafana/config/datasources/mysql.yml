@@ -1,0 +1,19 @@
+apiVersion: 1
+
+datasources:
+  - name: MySQL-KeyPool
+    type: mysql
+    access: proxy
+    url: host.docker.internal:3306
+    user: keypool_user
+    database: keypool_logs
+    basicAuth: false
+    isDefault: true
+    jsonData:
+      maxOpenConns: 0
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      timezone: "UTC"
+    secureJsonData:
+      password: keypool_password
+    editable: true

@@ -1,0 +1,5 @@
+# Basic requirements for now
+# We'll add more dependencies as we build features
+python-dateutil==2.8.2
+requests==2.31.0
+mysql-connector-python==8.2.0

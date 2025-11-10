@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=http://0.0.0.0:3000
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    volumes:
+      # Configuración de datasources
+      - ./config/datasources:/etc/grafana/provisioning/datasources
+      # Dashboards
+      - ./dashboards:/etc/grafana/provisioning/dashboards
+      # Persistencia de datos de Grafana
+      - grafana-storage:/var/lib/grafana
+    networks:
+      - monitoring-network
+    depends_on:
+      - check-mysql
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://0.0.0.0:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Servicio auxiliar para verificar que MySQL esté listo
+  check-mysql:
+    image: busybox:latest
+    container_name: check-mysql
+    command: >
+      sh -c "
+      echo 'Esperando a que MySQL esté listo en host.docker.internal:3307...';
+      while ! nc -z host.docker.internal 3307; do
+        echo 'MySQL no está listo aún...';
+        sleep 2;
+      done;
+      echo 'MySQL está listo!';
+      "
+    network_mode: host
+
+volumes:
+  grafana-storage:
+    driver: local
+
+networks:
+  monitoring-network:
+    driver: bridge
+    name: monitoring-network
