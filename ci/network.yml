@@ -25,8 +25,8 @@ network:test_docker_availability:
       # Test basic Docker functionality
       
       echo -e ${BBlue}Testing basic Docker build...${NC}
-      echo -e ${GREEN}FROM alpine:latest${NC} > test_dockerfile
-      echo -e ${GREEN}RUN echo -> test${NC} >> test_dockerfile
+      echo "FROM alpine:latest" > test_dockerfile
+      echo "RUN echo -> test" >> test_dockerfile
       sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo -e ${BRed}Docker build test failed${NC}
       sudo docker rmi test_image || docker rmi test_image || true
       rm test_dockerfile
@@ -86,8 +86,9 @@ network:test_grafana_setup:
   needs: [network:test_docker_availability]
   script:
     - |
-      set +x echo 'Testing Grafana setup files...${NC}
-      echo 'Checking Grafana directory structure...${NC}
+      set +x 
+      echo -e ${BBlue}Testing Grafana setup files...${NC}
+      echo -e ${BBlue}Checking Grafana directory structure...${NC}
       test -d src/local/grafana && echo -e ${BIGreen}Grafana directory exists${NC} || echo -e ${BRed}Grafana directory missing${NC}
       test -f src/local/grafana/docker-compose.yml && echo -e ${BIGreen}Grafana compose file exists${NC} || echo -e ${BRed}Grafana compose missing${NC}
       test -d src/local/grafana/config/datasources && echo -e ${BIGreen}Datasources config directory exists${NC} || echo -e ${BRed}Datasources directory missing${NC}
@@ -96,7 +97,7 @@ network:test_grafana_setup:
       test -f src/local/grafana/dashboards/keypool-logs-dashboard.json && echo -e ${BIGreen}Dashboard JSON exists${NC} || echo -e ${BRed}Dashboard JSON missing${NC}
     
       # Validate JSON dashboard
-      echo 'Validating dashboard JSON...'
+      echo -e ${BBlue}Validating dashboard JSON...${NC}
       python3 -c "import json; json.load(open('src/local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo -e ${BIGreen}Dashboard JSON is valid${NC} || echo -e ${BRed}Invalid JSON${NC}
     
   allow_failure: false
