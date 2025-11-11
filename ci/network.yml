@@ -1,0 +1,92 @@
+network:test_docker_availability:
+  stage: network
+  script:
+    - echo 'Testing Docker availability...'
+    - echo 'Current directory'
+    - pwd
+    - echo 'Available Docker'
+    - docker --version
+    - echo 'Current user'
+    - whoami
+    - echo 'Docker groups'
+    - groups
+    
+    # Check if user can access docker
+    - echo 'Testing Docker access...'
+    - sudo docker info || docker info || echo 'Docker access failed - will use sudo in builds'
+    
+    # Test basic Docker functionality
+    - echo -e '\033[0;32m Testing basic Docker build... \033[0m'
+    - echo 'FROM alpine:latest' > test_dockerfile
+    - echo 'RUN echo "test"' >> test_dockerfile
+    - sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo 'Docker build test failed'
+    - sudo docker rmi test_image || docker rmi test_image || true
+    - rm test_dockerfile
+    # TODO: work on message
+  allow_failure: true
+
+network:test_ssh_connection:
+  stage: network
+  script:
+    - echo 'Testing SSH connection to VM2...'
+    - echo 'Current user and home directory'
+    - whoami
+    - echo $HOME
+    
+    # Check SSH keys
+    - echo 'Checking SSH keys...'
+    - ls -la ~/.ssh/ || echo 'No .ssh directory found'
+    - ls -la ~/.ssh/id_* 2>/dev/null || echo 'No SSH keys found in standard location'
+    
+    # Test basic connectivity to VM2
+    - echo 'Testing ping to VM2...'
+    - ping -c 3 192.168.0.11 || echo 'Ping failed - VPN or network issue'
+    
+    # Test SSH connection
+    - echo 'Testing SSH connection...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'echo "SSH connection successful from $(hostname) to $(hostname)"' || echo 'SSH connection failed'
+    
+    # Test if we can access VM2 file system
+    - echo 'Testing file system access on VM2...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'ls -la /home/starion' || echo 'File system access failed'
+    
+    # Test Docker access on VM2
+    - echo 'Testing Docker on VM2...'
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker --version' || echo 'Docker not accessible on VM2'
+    
+  allow_failure: true
+
+# Test MySQL
+network:test_mysql_setup:
+  stage: network
+  script:
+    - echo 'Testing MySQL setup files...'
+    - test -f local/mysql/init/01-schema.sql && echo 'Schema file exists'
+    - test -f local/mysql/docker-compose.yml && echo 'MySQL compose file exists'
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Test Grafana configuration
+network:test_grafana_setup:
+  stage: network
+  script:
+    - echo 'Testing Grafana setup files...'
+    - echo 'Checking Grafana directory structure...'
+    - test -d local/grafana && echo '✓ Grafana directory exists' || echo ' Grafana directory missing'
+    - test -f local/grafana/docker-compose.yml && echo '✓ Grafana compose file exists' || echo '✗ Grafana compose missing'
+    - test -d local/grafana/config/datasources && echo '✓ Datasources config directory exists' || echo '✗ Datasources directory missing'
+    - test -f local/grafana/config/datasources/mysql.yml && echo '✓ MySQL datasource config exists' || echo '✗ MySQL datasource missing'
+    - test -d local/grafana/dashboards && echo '✓ Dashboards directory exists' || echo '✗ Dashboards directory missing'
+    - test -f local/grafana/dashboards/keypool-logs-dashboard.json && echo '✓ Dashboard JSON exists' || echo '✗ Dashboard JSON missing'
+    
+    # Validate JSON dashboard
+    - echo 'Validating dashboard JSON...'
+    - python3 -c "import json; json.load(open('local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo '✓ Dashboard JSON is valid' || echo '✗ Invalid JSON'
+    
+  allow_failure: false
+  only:
+    - main
+    - develop
+    - merge_requests

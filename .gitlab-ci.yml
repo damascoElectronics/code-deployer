@@ -10,10 +10,12 @@ include:
   - local: '/ci/quality_gate.yml'
   - local: '/ci/build.yml'
   - local: '/ci/report.yml'
+  - local: '/ci/network.yml'
 
 # stages
 stages:
   - lint
+  - network
   - test
   - coverage
   - security
