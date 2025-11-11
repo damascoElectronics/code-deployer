@@ -14,8 +14,8 @@ include:
 
 # stages
 stages:
-  - lint
   - network
+  - lint
   - test
   - coverage
   - security

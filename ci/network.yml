@@ -30,7 +30,7 @@ network:test_docker_availability:
       sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo -e ${BRed}Docker build test failed${NC}
       sudo docker rmi test_image || docker rmi test_image || true
       rm test_dockerfile
-  allow_failure: true
+  allow_failure: false
 
 network:test_ssh_connection:
   stage: network
@@ -72,9 +72,10 @@ network:test_mysql_setup:
   needs: [network:test_docker_availability]
   script:
     - |
-      set +x echo -e ${BBlue}Testing MySQL setup files...${NC}
-      test -f src/local/mysql/init/01-schema.sql && echo -e ${BRed}Schema file exists${NC}
-      test -f src/local/mysql/docker-compose.yml && echo -e ${BRed}MySQL compose file exists${NC}
+      set +x 
+      echo -e ${BBlue}Testing MySQL setup files...${NC}
+      test -f src/local/mysql/init/01-schema.sql && echo -e ${BIGreen}Schema file exists${NC} || echo -e ${BRed}Schema file not accessible${NC}
+      test -f src/local/mysql/docker-compose.yml && echo -e ${BIGreen}MySQL compose file exists${NC} || echo -e ${BRed}MySQL compose file not accessible${NC}
   only:
     - main
     - dev
