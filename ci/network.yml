@@ -3,28 +3,31 @@ network:test_docker_availability:
   script:
     - |
       set +x
-      echo 'Testing Docker availability...'
-      echo 'Current directory'
+      echo -e ${BBlue}Testing Docker availability... ${NC}
+      echo -e ${GREEN}Current directory ${NC}
       pwd
-      echo 'Available Docker'
+      echo -e ${GREEN}Available Docker ${NC}
       docker --version
-      echo 'Current user'
+      echo -e ${GREEN}Current user ${NC}
       whoami
-      echo 'Docker groups'
+      echo -e ${GREEN}Docker groups ${NC}
       groups
     
     # Check if user can access docker
-    - echo 'Testing Docker access...'
-    - sudo docker info || docker info || echo 'Docker access failed - will use sudo in builds'
+    - |
+      set +x
+      echo -e ${BBlue}Testing Docker access...${NC}
+      sudo docker info || docker info || echo -e ${BRed}Docker access failed - will use sudo in builds${NC}
     
     # Test basic Docker functionality
-    - echo 'Testing basic Docker build...'
-    - echo 'FROM alpine:latest' > test_dockerfile
-    - echo 'RUN echo "test"' >> test_dockerfile
-    - sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo 'Docker build test failed'
-    - sudo docker rmi test_image || docker rmi test_image || true
-    - rm test_dockerfile
-    # TODO: work on message
+    - |
+      set +x
+      echo -e ${BBlue}Testing basic Docker build...${NC}
+      echo -e ${GREEN}FROM alpine:latest${NC} > test_dockerfile
+      echo -e ${GREEN}RUN echo -> test${NC} >> test_dockerfile
+      sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo -e ${BRed}Docker build test failed${NC}
+      sudo docker rmi test_image || docker rmi test_image || true
+      rm test_dockerfile
   allow_failure: true
 
 network:test_ssh_connection:
