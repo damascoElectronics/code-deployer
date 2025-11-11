@@ -1,15 +1,17 @@
 network:test_docker_availability:
   stage: network
   script:
-    - echo 'Testing Docker availability...'
-    - echo 'Current directory'
-    - pwd
-    - echo 'Available Docker'
-    - docker --version
-    - echo 'Current user'
-    - whoami
-    - echo 'Docker groups'
-    - groups
+    - |
+      set +x
+      echo 'Testing Docker availability...'
+      echo 'Current directory'
+      pwd
+      echo 'Available Docker'
+      docker --version
+      echo 'Current user'
+      whoami
+      echo 'Docker groups'
+      groups
     
     # Check if user can access docker
     - echo 'Testing Docker access...'
@@ -28,7 +30,7 @@ network:test_docker_availability:
 network:test_ssh_connection:
   stage: network
   script:
-    - echo -e ${BBlue} Testing SSH connection to VM2... ${NC}
+    - echo -e ${BBlue}Testing SSH connection to VM2... ${NC}
     - echo 'Current user and home directory'
     - whoami
     - echo $HOME
