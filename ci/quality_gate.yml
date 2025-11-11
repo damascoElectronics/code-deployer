@@ -15,6 +15,7 @@ quality-gate:
   
   script:
     - |
+      set +x
       echo "=== COMPREHENSIVE QUALITY GATE VALIDATION ==="
       
       # Check if required files exist

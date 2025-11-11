@@ -27,3 +27,6 @@ variables:
   BIGreen: '\033[1;92m'       # Green
   BRed: '\033[1;31m'          # Red
   BBlue: '\033[1;34m'         # blue
+  # network settings
+  IP_POST: 192.168.0.11       
+  VPN_USER: starion
