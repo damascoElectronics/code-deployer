@@ -28,8 +28,7 @@ network:test_docker_availability:
 network:test_ssh_connection:
   stage: network
   script:
-    - set +x
-    - echo '${GREEN} Testing SSH connection to VM2...${NC}'
+    - echo -e ${BBlue} Testing SSH connection to VM2... ${NC}
     - echo 'Current user and home directory'
     - whoami
     - echo $HOME

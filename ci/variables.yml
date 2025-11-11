@@ -2,6 +2,7 @@
 variables:
   PYTHON_VERSION: '3.9'
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  FF_SCRIPT_SECTIONS: "true"
   # test criterial values
   COVERAGE_THRESHOLD: "80"    # <-- score minimum tu pass is 8.0 for coverage test 
   PYLINT_THRESHOLD: "8.0"     # <-- score minimum tu pass is 8.0 for code Quality style
@@ -19,10 +20,10 @@ variables:
   GRAFANA_ADMIN_PASSWORD: 'admin123'
   GRAFANA_PORT: '3003'
   # Terminal Colors
-  NC: \033[0m                 # No Color
-  RED: \033[0;31m             # Red
-  GREEN: \033[0;32m           # Green
+  NC: '\033[0m'               # No Color
+  RED: '\033[0;31m'           # Red
+  GREEN: '\033[0;32m'         # Green
   # Terminal bold High Intensity
-  BIGreen: \033[1;92m         # Green
-  BRed: \033[1;31m            # Red
-  BBlue: \033[1;34m           # blue
+  BIGreen: '\033[1;92m'       # Green
+  BRed: '\033[1;31m'          # Red
+  BBlue: '\033[1;34m'         # blue
