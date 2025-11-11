@@ -16,7 +16,7 @@ network:test_docker_availability:
     - sudo docker info || docker info || echo 'Docker access failed - will use sudo in builds'
     
     # Test basic Docker functionality
-    - echo -e '\033[0;32m Testing basic Docker build... \033[0m'
+    - echo 'Testing basic Docker build...'
     - echo 'FROM alpine:latest' > test_dockerfile
     - echo 'RUN echo "test"' >> test_dockerfile
     - sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo 'Docker build test failed'
@@ -65,7 +65,7 @@ network:test_mysql_setup:
     - test -f local/mysql/docker-compose.yml && echo 'MySQL compose file exists'
   only:
     - main
-    - develop
+    - dev
     - merge_requests
 
 # Test Grafana configuration
@@ -88,5 +88,5 @@ network:test_grafana_setup:
   allow_failure: false
   only:
     - main
-    - develop
+    - dev
     - merge_requests
