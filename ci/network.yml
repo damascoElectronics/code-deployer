@@ -28,7 +28,8 @@ network:test_docker_availability:
 network:test_ssh_connection:
   stage: network
   script:
-    - echo 'Testing SSH connection to VM2...'
+    - set +x
+    - echo '${GREEN} Testing SSH connection to VM2...${NC}'
     - echo 'Current user and home directory'
     - whoami
     - echo $HOME
@@ -61,8 +62,8 @@ network:test_mysql_setup:
   stage: network
   script:
     - echo 'Testing MySQL setup files...'
-    - test -f local/mysql/init/01-schema.sql && echo 'Schema file exists'
-    - test -f local/mysql/docker-compose.yml && echo 'MySQL compose file exists'
+    - test -f src/local/mysql/init/01-schema.sql && echo 'Schema file exists'
+    - test -f src/local/mysql/docker-compose.yml && echo 'MySQL compose file exists'
   only:
     - main
     - dev
@@ -74,16 +75,16 @@ network:test_grafana_setup:
   script:
     - echo 'Testing Grafana setup files...'
     - echo 'Checking Grafana directory structure...'
-    - test -d local/grafana && echo '✓ Grafana directory exists' || echo ' Grafana directory missing'
-    - test -f local/grafana/docker-compose.yml && echo '✓ Grafana compose file exists' || echo '✗ Grafana compose missing'
-    - test -d local/grafana/config/datasources && echo '✓ Datasources config directory exists' || echo '✗ Datasources directory missing'
-    - test -f local/grafana/config/datasources/mysql.yml && echo '✓ MySQL datasource config exists' || echo '✗ MySQL datasource missing'
-    - test -d local/grafana/dashboards && echo '✓ Dashboards directory exists' || echo '✗ Dashboards directory missing'
-    - test -f local/grafana/dashboards/keypool-logs-dashboard.json && echo '✓ Dashboard JSON exists' || echo '✗ Dashboard JSON missing'
+    - test -d src/local/grafana && echo '✓ Grafana directory exists' || echo ' Grafana directory missing'
+    - test -f src/local/grafana/docker-compose.yml && echo '✓ Grafana compose file exists' || echo '✗ Grafana compose missing'
+    - test -d src/local/grafana/config/datasources && echo '✓ Datasources config directory exists' || echo '✗ Datasources directory missing'
+    - test -f src/local/grafana/config/datasources/mysql.yml && echo '✓ MySQL datasource config exists' || echo '✗ MySQL datasource missing'
+    - test -d src/local/grafana/dashboards && echo '✓ Dashboards directory exists' || echo '✗ Dashboards directory missing'
+    - test -f src/local/grafana/dashboards/keypool-logs-dashboard.json && echo '✓ Dashboard JSON exists' || echo '✗ Dashboard JSON missing'
     
     # Validate JSON dashboard
     - echo 'Validating dashboard JSON...'
-    - python3 -c "import json; json.load(open('local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo '✓ Dashboard JSON is valid' || echo '✗ Invalid JSON'
+    - python3 -c "import json; json.load(open('src/local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo '✓ Dashboard JSON is valid' || echo '✗ Invalid JSON'
     
   allow_failure: false
   only:
