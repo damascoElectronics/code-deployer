@@ -1,43 +1,7 @@
 
 # ================================
-# STAGE: LINT
+# STAGE: CODE QUALITY
 # ================================
-
-lint:pylint:
-  stage: lint
-  image: python:3.9
-  tags:
-    - code-quality
-    - static-analysis
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
-    - rm -rf .pylint_cache || true
-  script:
-    # Run pylint and generate reports
-    - mkdir -p reports/pylint
-    - pylint src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
-    - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
-    - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
-    
-    - pylint src/remote/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
-    - pylint src/remote/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
-    - pylint src/remote/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
-    
-    # Show summary in console
-    - echo "=== PYLINT SUMMARY ==="
-    - tail -n 20 reports/pylint/pylint-report_processor.txt
-    - tail -n 20 reports/pylint/pylint-parseable_collector.txt
-
-  
-    # Check for critical errors (optional)
-    - pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
-  artifacts:
-    when: always
-    paths:
-      - reports/pylint
-    expire_in: 1 week
-  allow_failure: false
 
 lint:python_syntax:
   stage: lint
@@ -45,19 +9,21 @@ lint:python_syntax:
   tags:
     - code-quality
   script:
-    - echo 'Starting Python syntax and compilation tests...'
-    - echo 'Python version'
-    - python3 --version
-    - echo 'pip version'
-    - pip3 --version
+    - |
+      set +x
+      echo -e ${BBlue}Python syntax and compilation tests...${NC}
+      echo -e ${GREEN}Python version${NC}
+      python3 --version
+      echo -e ${GREEN}pip version${NC}
+      pip3 --version
+
+      # Create reports directory
+      mkdir -p reports/syntax
     
-    # Create reports directory
-    - mkdir -p reports/syntax
-    
-    # Test Container 1 (log_processor)
-    - echo 'Testing log_processor Python syntax...'
+      # Test Container 1 (log_processor)
+      echo -e ${GREEN}Testing log_processor Python syntax...${NC}
     - python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log
-    - echo 'log_processor/app.py syntax OK'
+      echo -e ${GREEN}log_processor/app.py syntax OK${NC}
     
     # Test Container 2 (log_collector)  
     - echo 'Testing log_collector Python syntax...'
@@ -108,3 +74,44 @@ lint:python_syntax:
     expire_in: 1 week
   
   allow_failure: false
+
+lint:pylint:
+  stage: lint
+  needs: [lint:python_syntax]
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - rm -rf .pylint_cache || true
+  script:
+    # Run pylint and generate reports
+    - mkdir -p reports/pylint
+    - pyl int src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
+    - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
+    - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
+    
+    - pylint src/remote/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
+    - pylint src/remote/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
+    - pylint src/remote/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
+    
+    # Show summary in console
+    - |
+      set +x
+      echo -e ${BBlue}=== PYLINT SUMMARY ===${NC}
+      echo -e ${BBlue}pylint-report_processor ${NC}
+      tail -n 20 reports/pylint/pylint-report_processor.txt
+      echo -e ${BBlue}pylint-report_collector ${NC}
+      tail -n 20 reports/pylint/pylint-report_collector.txt
+      # Check for critical errors (optional)
+      echo -e ${BBlue}Check for critical errors  ${NC}
+      pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
+  artifacts:
+    when: always
+    paths:
+      - reports/pylint
+    expire_in: 1 week
+  allow_failure: false
+
