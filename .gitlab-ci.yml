@@ -7,7 +7,7 @@ include:
   - local: '/ci/test.yml'
   - local: '/ci/coverage.yml'
   - local: '/ci/security.yml'
-  - local: '/ci/quality_gate.yml'
+  - local: '/ci/quality-gate.yml'
   - local: '/ci/build.yml'
   - local: '/ci/report.yml'
   - local: '/ci/network.yml'

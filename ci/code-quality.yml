@@ -88,7 +88,7 @@ lint:pylint:
   script:
     # Run pylint and generate reports
     - mkdir -p reports/pylint
-    - pyl int src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
+    - pylint src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
     - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
     - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
     
