@@ -49,8 +49,8 @@ lint:python_syntax:
     
       # Test if scripts can run for a few seconds
       echo -e ${BBlue}Testing if scripts can execute...${NC}
-      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo -e ${GREEN}log_processor runs (timeout expected)${NC}
-      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs (timeout expected)${NC}
+      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo -e ${GREEN}log_processor runs, timeout expected${NC}
+      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs, timeout expected${NC}
     
       # Create summary report
       
