@@ -23,6 +23,7 @@ variables:
   NC: '\033[0m'               # No Color
   RED: '\033[0;31m'           # Red
   GREEN: '\033[0;32m'         # Green
+  BLUE: '\033[0;34m'          # Blue
   # Terminal bold High Intensity
   BIGreen: '\033[1;92m'       # Green
   BRed: '\033[1;31m'          # Red

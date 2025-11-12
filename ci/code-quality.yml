@@ -21,51 +21,53 @@ lint:python_syntax:
       mkdir -p reports/syntax
     
       # Test Container 1 (log_processor)
-      echo -e ${GREEN}Testing log_processor Python syntax...${NC}
-    - python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log
+      echo -e ${BBlue}Testing log_processor Python syntax...${NC}
+      python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log
+      
       echo -e ${GREEN}log_processor/app.py syntax OK${NC}
     
-    # Test Container 2 (log_collector)  
-    - echo 'Testing log_collector Python syntax...'
-    - python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log
-    - echo 'log_collector/app.py syntax OK'
+      # Test Container 2 (log_collector)  
+      echo -e ${BBlue}Testing log_collector Python syntax...${NC}
+      python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log
+      echo -e ${GREEN}log_collector/app.py syntax OK${NC}
     
-    # Create virtual environment for testing dependencies
-    - echo 'Creating virtual environment...'
-    - python3 -m venv test_venv
-    - source test_venv/bin/activate
+      # Create virtual environment for testing dependencies
+      echo -e ${BBlue}Creating virtual environment...${NC}
+      python3 -m venv test_venv
+      source test_venv/bin/activate
     
-    # Install dependencies and test imports for log_processor
-    - echo 'Installing dependencies for log_processor...'
-    - cd src/local/log_processor
-    - pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_processor_pip_install.log
-    - python3 -c "import time, logging, datetime; print('log_processor imports OK')" 2>&1 | tee ../../../reports/syntax/log_processor_imports.log
-    - cd ../../../
+      # Install dependencies and test imports for log_processor
+      echo -e ${BBlue}Installing dependencies for log_processor...${NC}
+      cd src/local/log_processor
+      pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_processor_pip_install.log
+      python3 -c "import time, logging, datetime; print('log_processor imports OK')" 2>&1 | tee ../../../reports/syntax/log_processor_imports.log
+      cd ../../../
     
-    # Install dependencies and test imports for log_collector
-    - echo 'Installing dependencies for log_collector...'
-    - cd src/remote/log_collector  
-    - pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
-    - python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
-    - cd ../../../
+      # Install dependencies and test imports for log_collector
+      echo -e ${BBlue}Installing dependencies for log_collector...${NC}
+      cd src/remote/log_collector  
+      pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
+      python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
+      cd ../../../
     
-    # Test if scripts can run for a few seconds
-    - echo 'Testing if scripts can execute...'
-    - timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo 'log_processor runs (timeout expected)'
-    - timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo 'log_collector runs (timeout expected)'
+      # Test if scripts can run for a few seconds
+      echo -e ${BBlue}Testing if scripts can execute...${NC}
+      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo '-e ${GREEN}log_processor runs (timeout expected)${NC}
+      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs (timeout expected)${NC}
     
-    # Create summary report
-    - echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
-    - date >> reports/syntax/summary.txt
-    - echo "" >> reports/syntax/summary.txt
-    - echo "Files checked:" >> reports/syntax/summary.txt
-    - echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
-    - echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
-    - cat reports/syntax/summary.txt
-    
-    # Cleanup
-    - deactivate || true
-    - rm -rf test_venv
+      # Create summary report
+      
+      echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
+      date >> reports/syntax/summary.txt
+      echo "" >> reports/syntax/summary.txt
+      echo "Files checked:" >> reports/syntax/summary.txt
+      echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
+      echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
+      cat reports/syntax/summary.txt
+      echo -e ${BIGreen}SYNTAX CHECK SUMMARY on ${BLUE}summary.txt${NC}
+      # Cleanup
+      deactivate || true
+      rm -rf test_venv
   
   artifacts:
     when: always
