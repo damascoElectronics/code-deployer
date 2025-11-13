@@ -390,7 +390,7 @@ deploy_ogs_data_generator_vm2:
     - echo 'Loading and running container on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         echo "Loading Docker image on VM2...";
-        docker load -i /tmp/ogs_data_generator.tar;
+        docker load -i /tmp/gs_data_generator_transfer.tar;
         echo "Stopping existing ogs_data_generator container...";
         docker stop ogs_data_generator_container 2>/dev/null || echo "No existing container to stop";
         docker rm ogs_data_generator_container 2>/dev/null || echo "No existing container to remove";
