@@ -335,18 +335,18 @@ deploy_to_vm2:
     
     # Save both images to tar files
     - echo 'Preparing ogs_data_generator image for transfer...'
-    - sudo docker save ogs_data_generator:latest -o ogs_data_generator.tar || docker save ogs_data_generator:latest -o ogs_data_generator.tar
+    - docker save ogs_data_generator:latest -o ogs_data_generator.tar
     - ls -lh ogs_data_generator.tar
     
     - echo 'Preparing log_collector image for transfer...'
-    - sudo docker save log_collector:latest -o log_collector.tar || docker save log_collector:latest -o log_collector.tar
+    - docker save log_collector:latest -o log_collector.tar
     - ls -lh log_collector.tar
     
     # Transfer images and docker-compose.yml to VM2
     - echo 'Transferring images and docker-compose.yml to VM2...'
     - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no ogs_data_generator.tar starion@192.168.0.11:/tmp/
     - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no log_collector.tar starion@192.168.0.11:/tmp/
-    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no docker-compose.yml starion@192.168.0.11:/tmp/
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no remote/docker-compose.yml starion@192.168.0.11:/tmp/
     
     # Load images and deploy with docker compose on VM2
     - echo 'Loading images and deploying with Docker Compose on VM2...'
