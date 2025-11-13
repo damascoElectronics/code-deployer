@@ -352,36 +352,45 @@ deploy_to_vm2:
     - echo 'Loading images and deploying with Docker Compose on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         cd /tmp;
+
+        echo "CLEANUP Stopping old containers";
+        docker stop log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old containers running";
+        docker rm log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old containers to remove";
         
-        echo "Loading Docker images on VM2...";
+         echo "Stopping existing deployment...";
+        docker compose down 2>/dev/null || echo "No existing deployment to stop";
+        
+        echo "CLEANUP Removing orphaned networks";
+        docker network prune -f || true;
+        
+        echo "Loading Docker images";
         docker load -i ogs_data_generator.tar;
         docker load -i log_collector.tar;
         
         echo "Verifying loaded images...";
         docker images | grep -E "ogs_data_generator|log_collector";
         
-        echo "Stopping existing deployment...";
-        docker compose down 2>/dev/null || echo "No existing deployment to stop";
-        
         echo "Starting services with Docker Compose...";
         docker compose up -d;
         
         echo "Waiting for containers to stabilize...";
-        sleep 10;
+        sleep 15;
         
         echo "Verifying deployment status...";
         docker compose ps;
         
+        echo "Deployment summary:";
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}";
+        
         echo "Checking container logs...";
         docker compose logs --tail=50;
         
-        echo "Cleaning up transfer files...";
-        rm -f ogs_data_generator.tar log_collector.tar;
+        echo "Testing connectivity between containers";
+        docker exec ogs_data_generator curl -f http://localhost:5000/health || echo "OGS health check failed";
         
-        echo "Deployment summary:";
-        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}";
+        echo "Cleaning up transfer files";
+        rm -f ogs_data_generator.tar log_collector.tar;
       '
-    
     # Clean up local transfer files
     - rm -f ogs_data_generator.tar log_collector.tar
     - echo '✓ Both containers deployed and running on VM2 with Docker Compose'
