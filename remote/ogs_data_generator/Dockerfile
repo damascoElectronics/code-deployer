@@ -19,12 +19,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run application
 CMD ["python", "app.py"]
-```
-
----
-
-## 📄 `remote/ogs_data_generator/requirements.txt`
-```
-flask==3.0.0
-requests==2.31.0
-werkzeug==3.0.1
