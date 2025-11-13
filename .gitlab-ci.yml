@@ -43,7 +43,7 @@ test_python_syntax:
     - echo '✓ log_collector/app.py syntax OK'
 
     - echo 'Testing ogs_data_generator  Python syntax...'
-    - python3 -m py_compile local/ogs_data_generator/app.py
+    - python3 -m py_compile remote/ogs_data_generator/app.py
     - echo '✓ ogs_data_generator/app.py syntax OK'
 
 
