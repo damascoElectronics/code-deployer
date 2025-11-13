@@ -393,7 +393,7 @@ deploy_to_vm2:
     - main
     - develop
     - merge_requests
-    
+
 # Deploy MySQL
 deploy_mysql_vm1:
   stage: deploy
@@ -634,8 +634,8 @@ verify_deployment:
     - echo '  - Grafana (VM1):\ Visualizing data on port ${GRAFANA_PORT}'
     
   dependencies:
+    - deploy_to_vm2
     - deploy_log_processor_vm1
-    - deploy_log_collector_vm2
     - deploy_mysql_vm1
     - deploy_grafana_vm1
   only:
