@@ -36,12 +36,17 @@ test_python_syntax:
     - echo 'Testing log_processor Python syntax...'
     - python3 -m py_compile local/log_processor/app.py
     - echo '✓ log_processor/app.py syntax OK'
-    
+      
     # Test Container 2 (log_collector)  
     - echo 'Testing log_collector Python syntax...'
     - python3 -m py_compile remote/log_collector/app.py
     - echo '✓ log_collector/app.py syntax OK'
-    
+
+    - echo 'Testing ogs_data_generator  Python syntax...'
+    - python3 -m py_compile local/ogs_data_generator/app.py
+    - echo '✓ ogs_data_generator/app.py syntax OK'
+
+
     # Create virtual environment for testing dependencies
     - echo 'Creating virtual environment...'
     - python3 -m venv test_venv
@@ -59,13 +64,19 @@ test_python_syntax:
     - cd remote/log_collector  
     - pip install -r requirements.txt
     - python3 -c "import time, logging, datetime, os; print('✓ log_collector imports OK')"
+    - cd ../
+    - echo 'Installing dependencies for ogs_data_generator...'
+    - cd ogs_data_generator  
+    - pip install -r requirements.txt
+    - python3 -c "import time, logging, datetime, os; print('✓ ogs_data_generator imports OK')"
     - cd ../../
     
     # Test if scripts can run for a few seconds
     - echo 'Testing if scripts can execute...'
     - timeout 5 python3 local/log_processor/app.py || echo '✓ log_processor runs (timeout expected)'
     - timeout 5 python3 remote/log_collector/app.py || echo '✓ log_collector runs (timeout expected)'
-    
+    - timeout 5 python3 local/ogs_data_generator/app.py || echo '✓ ogs_data_generator runs (timeout expected)'
+
     # Cleanup
     - deactivate || true
     - rm -rf test_venv
@@ -220,6 +231,34 @@ build_log_collector:
     - develop
     - merge_requests
 
+build_ogs_data_generator:
+  stage: build
+  script:
+    - echo 'Building ogs_data_generator container...'
+    - cd remote/ogs_data_generator
+    
+    # Build the Docker image  
+    - echo 'Building Docker image for ogs_data_generator...'
+    - sudo docker build -t ogs_data_generator:latest . || docker build -t ogs_data_generator:latest .
+    
+    # Verify the image was built
+    - sudo docker images | grep ogs_data_generator || docker images | grep ogs_data_generator
+    - echo '✓ ogs_data_generator container built successfully'
+    
+    # Optional - save image info for later use
+    - sudo docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../ogs_data_generator_id.txt || docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../ogs_data_generator_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../ogs_data_generator_id.txt
+
+  artifacts:
+    paths:
+      - ogs_data_generator_id.txt
+    expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
+
 # Build MySQL
 build_mysql:
   stage: build
@@ -331,6 +370,51 @@ deploy_log_collector_vm2:
     - main
     - develop
     - merge_requests
+
+
+deploy_ogs_data_generator_vm2:
+  stage: deploy
+  script:
+    - echo 'Deploying ogs_data_generator to VM2 (remote)...'
+    
+    # Save image to tar file for transfer
+    - echo 'Preparing ogs_data_generator image for transfer...'
+    - sudo docker save ogs_data_generator:latest -o ogs_data_generator_transfer.tar || docker save ogs_data_generator:latest -o ogs_data_generator_transfer.tar
+    - ls -lh ogs_data_generator_transfer.tar
+    
+    # Transfer image to VM2
+    - echo 'Transferring image to VM2...'
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no ogs_data_generator_transfer.tar starion@192.168.0.11:/tmp/
+    
+    # Load and run container on VM2
+    - echo 'Loading and running container on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Loading Docker image on VM2...";
+        docker load -i /tmp/ogs_data_generator.tar;
+        echo "Stopping existing ogs_data_generator container...";
+        docker stop ogs_data_generator_container 2>/dev/null || echo "No existing container to stop";
+        docker rm ogs_data_generator_container 2>/dev/null || echo "No existing container to remove";
+        echo "Starting ogs_data_generator container...";
+        docker run -d --name ogs_data_generator_container --restart unless-stopped -p 5000:5000 ogs_data_generator:latest;
+        echo "Verifying container status...";
+        sleep 5;
+        docker ps | grep ogs_data_generator_container;
+        docker logs ogs_data_generator_container;
+        echo "Cleaning up transfer file...";
+        rm -f /tmp/ogs_data_generator_transfer.tar;
+      '
+    
+    # Clean up local transfer file
+    - rm -f ogs_data_generator_transfer.tar
+    - echo '✓ ogs_data_generator deployed and running on VM2'
+    
+  dependencies:
+    - build_ogs_data_generator
+  only:
+    - main
+    - develop
+    - merge_requests
+
 
 # Deploy MySQL
 deploy_mysql_vm1:
@@ -541,6 +625,13 @@ verify_deployment:
         docker ps | grep log_collector_container;
         echo "Recent logs from VM2:";
         docker logs --tail 10 log_collector_container;
+      '
+    - echo 'Checking ogs_data_generator on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Container status on VM2:";
+        docker ps | grep ogs_data_generator_container;
+        echo "Recent logs from VM2:";
+        docker logs --tail 10 ogs_data_generator_container;
       '
     
     # Verify data flow
@@ -792,6 +883,8 @@ stop_all_containers:
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         docker stop log_collector_container || echo "⚠️  log_collector was not running";
         docker rm log_collector_container || echo "⚠️  log_collector was already removed";
+        docker stop ogs_data_generator_container || echo "⚠️  ogs_data_generator was not running";
+        docker rm ogs_data_generator_container || echo "⚠️  ogs_data_generator was already removed";
       ' || echo '⚠️  Could not connect to VM2'
     
     # Final verification
@@ -802,6 +895,7 @@ stop_all_containers:
     - echo ''
     - echo 'VM2 container status:'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep log_collector_container || echo "✅ VM2 container stopped"' || echo '⚠️  Could not verify VM2'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 'docker ps | grep ogs_data_generator_container || echo "✅ VM2 container stopped"' || echo '⚠️  Could not verify VM2'
     
     - echo ''
     - echo '========================================='
