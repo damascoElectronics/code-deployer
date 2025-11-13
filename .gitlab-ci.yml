@@ -211,16 +211,20 @@ build_log_collector:
     
     # Build the Docker image  
     - echo 'Building Docker image for log_collector...'
-    - sudo docker build -t log_collector:latest . || docker build -t log_collector:latest .
+    - docker build -t log_collector:latest .
     
     # Verify the image was built
-    - sudo docker images | grep log_collector || docker images | grep log_collector
+    - docker images | grep log_collector
     - echo '✓ log_collector container built successfully'
     
+    # Test that dependencies are installed correctly
+    - echo 'Testing dependencies...'
+    - docker run --rm log_collector:latest python -c "import requests; import flask; print('Dependencies OK')"
+    
     # Optional - save image info for later use
-    - sudo docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt || docker inspect log_collector:latest --format='{{.Id}}' > ../log_collector_image_id.txt
+    - docker inspect log_collector:latest --format='{{.Id}}' > ../../log_collector_image_id.txt
     - echo 'Image ID saved for reference'
-    - cat ../log_collector_image_id.txt
+    - cat ../../log_collector_image_id.txt
     
   artifacts:
     paths:
@@ -239,16 +243,20 @@ build_ogs_data_generator:
     
     # Build the Docker image  
     - echo 'Building Docker image for ogs_data_generator...'
-    - sudo docker build -t ogs_data_generator:latest . || docker build -t ogs_data_generator:latest .
+    - docker build -t ogs_data_generator:latest .
     
     # Verify the image was built
-    - sudo docker images | grep ogs_data_generator || docker images | grep ogs_data_generator
+    - docker images | grep ogs_data_generator
     - echo '✓ ogs_data_generator container built successfully'
     
+    # Test that dependencies are installed correctly
+    - echo 'Testing dependencies...'
+    - docker run --rm ogs_data_generator:latest python -c "import flask; print('Dependencies OK')"
+    
     # Optional - save image info for later use
-    - sudo docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../ogs_data_generator_id.txt || docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../ogs_data_generator_id.txt
+    - docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../../ogs_data_generator_id.txt
     - echo 'Image ID saved for reference'
-    - cat ../ogs_data_generator_id.txt
+    - cat ../../ogs_data_generator_id.txt
 
   artifacts:
     paths:
@@ -342,58 +350,67 @@ deploy_to_vm2:
     - docker save log_collector:latest -o log_collector.tar
     - ls -lh log_collector.tar
     
-    # Transfer images and docker-compose.yml to VM2
-    - echo 'Transferring images and docker-compose.yml to VM2...'
+    # Transfer images and docker-compose.prod.yml to VM2
+    - echo 'Transferring images and docker-compose.prod.yml to VM2...'
     - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no ogs_data_generator.tar starion@192.168.0.11:/tmp/
     - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no log_collector.tar starion@192.168.0.11:/tmp/
-    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no remote/docker-compose.yml starion@192.168.0.11:/tmp/
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no remote/docker-compose.prod.yml starion@192.168.0.11:/tmp/docker-compose.yml
     
     # Load images and deploy with docker compose on VM2
     - echo 'Loading images and deploying with Docker Compose on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         cd /tmp;
-
-        echo "CLEANUP Stopping old containers";
-        docker stop log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old containers running";
-        docker rm log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old containers to remove";
         
-         echo "Stopping existing deployment...";
-        docker compose down 2>/dev/null || echo "No existing deployment to stop";
+        echo "=== CLEANUP Stopping old standalone containers ===";
+        docker stop log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old standalone containers running";
+        docker rm log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old standalone containers to remove";
         
-        echo "CLEANUP Removing orphaned networks";
-        docker network prune -f || true;
+        echo "=== CLEANUP Stopping existing compose deployment ===";
+        docker compose down -v 2>/dev/null || echo "No existing compose deployment";
         
-        echo "Loading Docker images";
+        echo "=== Loading Docker images ===";
         docker load -i ogs_data_generator.tar;
         docker load -i log_collector.tar;
         
-        echo "Verifying loaded images...";
+        echo "=== Verifying loaded images ===";
         docker images | grep -E "ogs_data_generator|log_collector";
         
-        echo "Starting services with Docker Compose...";
+        echo "=== Verifying docker-compose.yml ===";
+        head -10 docker-compose.yml;
+        
+        echo "=== Starting services with Docker Compose ===";
         docker compose up -d;
         
-        echo "Waiting for containers to stabilize...";
+        echo "=== Waiting for containers to stabilize ===";
         sleep 15;
         
-        echo "Verifying deployment status...";
+        echo "=== Verifying deployment status ===";
         docker compose ps;
         
-        echo "Deployment summary:";
+        echo "=== Checking all containers ===";
         docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}";
         
-        echo "Checking container logs...";
-        docker compose logs --tail=50;
+        echo "=== Checking container logs ===";
+        echo "--- OGS Data Generator logs ---";
+        docker compose logs ogs-data-generator --tail=20;
+        echo "";
+        echo "--- Log Collector logs ---";
+        docker compose logs log-collector --tail=20;
         
-        echo "Testing connectivity between containers";
-        docker exec ogs_data_generator curl -f http://localhost:5000/health || echo "OGS health check failed";
+        echo "=== Testing connectivity ===";
+        echo "Testing OGS health endpoint...";
+        curl -f http://localhost:5000/health || echo "OGS health check failed";
         
-        echo "Cleaning up transfer files";
+        echo "=== Cleaning up transfer files ===";
         rm -f ogs_data_generator.tar log_collector.tar;
+        
+        echo "=== Final deployment summary ===";
+        docker ps;
       '
+    
     # Clean up local transfer files
     - rm -f ogs_data_generator.tar log_collector.tar
-    - echo '✓ Both containers deployed and running on VM2 with Docker Compose'
+    - echo '✓ Deployment completed - check logs above for status'
     
   dependencies:
     - build_log_collector
