@@ -626,16 +626,16 @@ verify_deployment:
     - echo 'Checking log_collector on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         echo "Container status on VM2:";
-        docker ps | grep log_collector_container;
+        docker ps | grep log_collector;
         echo "Recent logs from VM2:";
-        docker logs --tail 10 log_collector_container;
+        docker logs --tail 10 log_collector;
       '
     - echo 'Checking ogs_data_generator on VM2...'
     - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
         echo "Container status on VM2:";
-        docker ps | grep ogs_data_generator_container;
+        docker ps | grep ogs_data_generator;
         echo "Recent logs from VM2:";
-        docker logs --tail 10 ogs_data_generator_container;
+        docker logs --tail 10 ogs_data_generator;
       '
     
     # Verify data flow

@@ -22,12 +22,3 @@ class Config:
     
     # HTTP Server configuration
     HTTP_SERVER_PORT = int(os.getenv("HTTP_SERVER_PORT", "8080"))
-```
-
----
-
-### `remote/log_collector/requirements.txt`
-```
-requests==2.31.0
-flask==3.0.0
-werkzeug==3.0.1
