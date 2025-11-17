@@ -22,6 +22,7 @@ services:
       - grafana-storage:/var/lib/grafana
     networks:
       - monitoring-network
+      - mysql_ogs_network  # ← Conectar a la red de MySQL
     depends_on:
       - check-mysql
     healthcheck:
@@ -36,14 +37,15 @@ services:
     container_name: check-mysql
     command: >
       sh -c "
-      echo 'Esperando a que MySQL esté listo en host.docker.internal:3307...';
-      while ! nc -z host.docker.internal 3307; do
+      echo 'Esperando a que MySQL esté listo en ogs_mysql:3306...';
+      while ! nc -z ogs_mysql 3306; do
         echo 'MySQL no está listo aún...';
         sleep 2;
       done;
       echo 'MySQL está listo!';
       "
-    network_mode: host
+    networks:
+      - mysql_ogs_network  # ← Usar la misma red que MySQL
 
 volumes:
   grafana-storage:
@@ -53,3 +55,5 @@ networks:
   monitoring-network:
     driver: bridge
     name: monitoring-network
+  mysql_ogs_network:  # ← Declarar red externa
+    external: true

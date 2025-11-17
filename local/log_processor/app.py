@@ -1,126 +1,149 @@
 #!/usr/bin/env python3
 """
-Container 1 - Log Processor (VM1)
-Main application - orchestrates downloading, parsing, and storing logs
+Unified Log Processor
+
+Orchestrates multiple data processors:
+- KeyPool: Processes quantum key creation logs
+- OGS: Processes Optical Ground Station monitoring data
+- (Future) Camera: Processes camera feed data
+- (Future) Weather: Processes weather station data
 """
 
-import time
-import logging
-from datetime import datetime
 import sys
+import signal
+import logging
+from threading import Thread, Event
+from config import Config
+from processors.keypool_processor import KeyPoolProcessor
+from processors.ogs_processor import OGSProcessor
 
-# Import custom modules
-import config
-from database import DatabaseManager
-from downloader import LogDownloader
-from parser import LogParser
-
-# Configure logging
 logging.basicConfig(
-    level=getattr(logging, config.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger('log_processor')
+logger = logging.getLogger(__name__)
 
 
-def print_startup_info():
-    """Print startup information"""
-    logger.info("=" * 60)
-    logger.info("Container 1 (Log Processor) starting up...")
-    logger.info(f"Running on VM1")
-    logger.info(f"VM2 API URL: {config.VM2_API_URL}")
-    logger.info(f"Poll interval: {config.POLL_INTERVAL} seconds")
-    logger.info(f"Download directory: {config.DOWNLOAD_DIR}")
-    logger.info(f"MySQL: {config.MYSQL_USER}@{config.MYSQL_HOST}:{config.MYSQL_PORT}/{config.MYSQL_DATABASE}")
-    logger.info("=" * 60)
+class UnifiedProcessor:
+    """
+    Main orchestrator for all data processors.
+    
+    Manages multiple independent processors that share the same database.
+    Each processor runs in its own thread.
+    """
+    
+    def __init__(self):
+        self.config = Config()
+        self.shutdown_event = Event()
+        
+        # Initialize processors
+        self.processors = {}
+        
+        # KeyPool Processor
+        if self.config.ENABLE_KEYPOOL:
+            logger.info("Initializing KeyPool Processor...")
+            self.processors['keypool'] = KeyPoolProcessor(self.config)
+        
+        # OGS Processor
+        if self.config.ENABLE_OGS:
+            logger.info("Initializing OGS Processor...")
+            self.processors['ogs'] = OGSProcessor(self.config)
+        
+        # Future processors will be added here:
+        # if self.config.ENABLE_CAMERA:
+        #     self.processors['camera'] = CameraProcessor(self.config)
+        # if self.config.ENABLE_WEATHER:
+        #     self.processors['weather'] = WeatherProcessor(self.config)
+        
+        self.threads = []
+    
+    def setup_signal_handlers(self):
+        """Setup graceful shutdown on SIGTERM and SIGINT."""
+        signal.signal(signal.SIGTERM, self._handle_shutdown)
+        signal.signal(signal.SIGINT, self._handle_shutdown)
+    
+    def _handle_shutdown(self, signum, frame):
+        """Handle shutdown signal."""
+        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        self.shutdown_event.set()
+        self.stop()
+    
+    def start(self):
+        """Start all enabled processors."""
+        logger.info("="*70)
+        logger.info("Unified Log Processor Starting")
+        logger.info("="*70)
+        logger.info(f"Database: {self.config.DB_HOST}:{self.config.DB_PORT}/{self.config.DB_NAME}")
+        logger.info(f"Enabled Processors: {', '.join(self.processors.keys())}")
+        logger.info("="*70)
+        
+        if not self.processors:
+            logger.error("No processors enabled! Check configuration.")
+            return
+        
+        # Start each processor in its own thread
+        for name, processor in self.processors.items():
+            thread = Thread(
+                target=self._run_processor,
+                args=(name, processor),
+                daemon=True,
+                name=f"{name.capitalize()}Thread"
+            )
+            thread.start()
+            self.threads.append(thread)
+            logger.info(f"✓ {name.capitalize()} Processor started")
+        
+        logger.info("="*70)
+        logger.info("All processors running. Press Ctrl+C to stop.")
+        logger.info("="*70)
+        
+        # Wait for shutdown signal
+        try:
+            self.shutdown_event.wait()
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received")
+        finally:
+            self.stop()
+    
+    def _run_processor(self, name, processor):
+        """
+        Run a processor with error handling.
+        
+        Args:
+            name: Processor name for logging
+            processor: Processor instance to run
+        """
+        try:
+            processor.run()
+        except Exception as e:
+            logger.error(f"{name.capitalize()} Processor crashed: {e}", exc_info=True)
+            # Don't crash the whole application if one processor fails
+    
+    def stop(self):
+        """Stop all processors gracefully."""
+        logger.info("Stopping all processors...")
+        
+        for name, processor in self.processors.items():
+            try:
+                processor.stop()
+                logger.info(f"✓ {name.capitalize()} Processor stopped")
+            except Exception as e:
+                logger.error(f"Error stopping {name} processor: {e}")
+        
+        logger.info("All processors stopped")
 
 
 def main():
-    """Main function for Container 1 - Log Processor"""
+    """Main entry point."""
+    app = UnifiedProcessor()
+    app.setup_signal_handlers()
     
-    # Print startup information
-    print_startup_info()
-    
-    # Initialize components
-    logger.info("\nInitializing components...")
-    
-    # 1. Connect to database
-    logger.info("Connecting to MySQL database...")
-    db_manager = DatabaseManager()
-    
-    if not db_manager.is_connected():
-        logger.error("Failed to connect to database. Exiting...")
-        sys.exit(1)
-    
-    # 2. Initialize downloader
-    logger.info("Initializing log downloader...")
-    downloader = LogDownloader()
-    
-    # 3. Initialize parser
-    logger.info("Initializing log parser...")
-    parser = LogParser(db_manager)
-    
-    logger.info("✓ All components initialized successfully\n")
-    
-    # Initial health check
-    logger.info("Performing initial health check...")
-    if not downloader.check_api_health():
-        logger.warning("VM2 API not reachable yet. Will retry...")
-    
-    # Load already processed files
-    processed_count = len(downloader.processed_files)
-    logger.info(f"Already processed {processed_count} files")
-    
-    iteration = 0
-    
-    # Main processing loop
     try:
-        while True:
-            iteration += 1
-            logger.info(f"\n{'='*60}")
-            logger.info(f"[Iteration {iteration}] Polling for new logs...")
-            logger.info(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Get new log files from VM2
-            new_logs = downloader.get_new_logs()
-            
-            if not new_logs:
-                logger.info("No new logs to process")
-            else:
-                # Process each new log file
-                for log_info in new_logs:
-                    filename = log_info['filename']
-                    
-                    # Step 1: Download the file
-                    filepath, file_size = downloader.download_log_file(filename)
-                    
-                    if not filepath:
-                        logger.warning(f"Failed to download {filename}, skipping...\n")
-                        continue
-                    
-                    # Step 2: Parse and store in database
-                    stats = parser.process_log_file(filepath)
-                    
-                    if stats:
-                        # Step 3: Mark as processed
-                        downloader.mark_as_processed(filename)
-                        logger.info(f"✓ {filename} completed successfully\n")
-                    else:
-                        logger.warning(f"Failed to process {filename}\n")
-            
-            # Wait before next poll
-            logger.info(f"Waiting {config.POLL_INTERVAL} seconds until next poll...")
-            time.sleep(config.POLL_INTERVAL)
-    
-    except KeyboardInterrupt:
-        logger.info("\nShutdown signal received. Cleaning up...")
+        app.start()
     except Exception as e:
-        logger.error(f"Unexpected error in main loop: {e}", exc_info=True)
-    finally:
-        # Cleanup
-        logger.info("Closing database connection...")
-        db_manager.close()
-        logger.info("Log processor stopped gracefully")
+        logger.error(f"Application error: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
