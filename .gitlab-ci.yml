@@ -669,44 +669,6 @@ verify_deployment:
     - develop
     - merge_requests
 
-verify_complete_stack:
-  stage: deploy
-  script:
-    - echo "================================================"
-    - echo "Verifying Complete Stack"
-    - echo "================================================"
-    
-    - echo "Remote VM Services"
-    - echo "  - OGS Data Generator http://192.168.0.11:5000/health"
-    - ssh -o StrictHostKeyChecking=no starion@192.168.0.11 'curl -s http://localhost:5000/health | head -n 5'
-    
-    - echo "  - Log Collector http://192.168.0.11:8080/health"
-    - ssh -o StrictHostKeyChecking=no starion@192.168.0.11 'curl -s http://localhost:8080/health | head -n 5'
-    
-    - echo ""
-    - echo "Local VM Services:"
-    - echo "  - MySQL localhost:3306"
-    - docker exec ogs_mysql mysql -u ogs_user -pogs_password -e "SELECT 'MySQL OK' as status;"
-    
-    - echo "  - Log Processor:"
-    - docker logs log_processor --tail 10
-    
-    - echo "  - Grafana http://localhost:3003"
-    - curl -s http://localhost:3003/api/health || echo "Grafana check failed"
-    
-    - echo ""
-    - echo "================================================"
-    - echo "✓ Complete stack verification done"
-    - echo "================================================"
-  dependencies:
-    - deploy_to_remote_vm
-    - deploy_mysql
-    - deploy_log_processor
-    - deploy_grafana
-  only:
-    - main
-    - develop
-
 stop_all_containers:
   stage: stop
   script:
