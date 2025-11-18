@@ -15,7 +15,7 @@ class Config:
     # ============================================================
     # Database Configuration (Shared by all processors)
     # ============================================================
-    DB_HOST = os.getenv("DB_HOST", "mysql")
+    DB_HOST = os.getenv("DB_HOST", "keypool_mysql")
     DB_PORT = int(os.getenv("DB_PORT", "3306"))
     DB_NAME = os.getenv("DB_NAME", "keypool_logs")  # ← Base de datos compartida
     DB_USER = os.getenv("DB_USER", "ogs_user")

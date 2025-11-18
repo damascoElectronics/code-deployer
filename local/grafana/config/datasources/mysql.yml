@@ -4,7 +4,7 @@ datasources:
   - name: KeyPool-OGS MySQL
     type: mysql
     access: proxy
-    url: ogs_mysql:3306 
+    url: keypool_mysql:3306 
     database: keypool_logs
     user: ogs_user
     secureJsonData:
