@@ -314,6 +314,7 @@ deploy_log_processor_vm1:
     # Run the new container
     - echo 'Starting log_processor container on VM1...'
     # Obtaing  MySQL's IP first
+    - sleep 15
     - MYSQL_IP=$(docker inspect keypool_mysql --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
     - sleep 5
     - >
@@ -352,6 +353,8 @@ deploy_log_processor_vm1:
     
   dependencies:
     - build_log_processor
+    - deploy_mysql_vm1
+  needs:
     - deploy_mysql_vm1
   only:
     - main
