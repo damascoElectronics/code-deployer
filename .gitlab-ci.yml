@@ -315,21 +315,28 @@ deploy_log_processor_vm1:
     - echo 'Starting log_processor container on VM1...'
     # Obtaing  MySQL's IP first
     - MYSQL_IP=$(docker inspect keypool_mysql --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-    - docker run -d \
-        --name log_processor_container \
-        --restart unless-stopped \
-        --network host \
-        --add-host keypool_mysql:${MYSQL_IP} \
-        -e DB_HOST=keypool_mysql \
-        -e DB_PORT=3306 \
-        -e DB_NAME=keypool_logs \
-        -e DB_USER=keypool_user \
-        -e DB_PASSWORD=keypool_password \
-        -e ENABLE_KEYPOOL=false \
-        -e ENABLE_OGS=true \
-        -e OGS_COLLECTOR_URL=http://192.168.0.11:8080 \
-        -e OGS_PROCESS_INTERVAL=15 \
-        log_processor:latest
+    - sleep 5
+    - >
+      docker run -d
+      --name log_processor_container
+      --restart unless-stopped
+      --network host
+      --add-host keypool_mysql:${MYSQL_IP}
+      -e DB_HOST=keypool_mysql
+      -e DB_PORT=3306
+      -e DB_NAME=keypool_logs
+      -e DB_USER=keypool_user
+      -e DB_PASSWORD=keypool_password
+      -e ENABLE_KEYPOOL=false
+      -e ENABLE_OGS=true
+      -e OGS_COLLECTOR_URL=http://192.168.0.11:8080
+      -e OGS_PROCESS_INTERVAL=15
+      log_processor:latest
+    
+    - sleep 5
+    - docker ps | grep log_processor_container
+    - docker logs --tail 20 log_processor_container
+    - echo '✓ log_processor deployed'
 
     # Verify container is running
     - echo 'Verifying log_processor container status...'
