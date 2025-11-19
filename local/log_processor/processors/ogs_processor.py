@@ -14,15 +14,19 @@ from .base_processor import BaseProcessor
 
 def parse_timestamp(timestamp_str):
     """
-    Convierte timestamp ISO (con Z) a formato MySQL.
+    Conviert timestamp ISO (with Z) to format MySQL.
     '2025-11-19T10:49:48Z' -> '2025-11-19 10:49:48'
+    '2025-11-19T10:49:48.123456Z' -> '2025-11-19 10:49:48'
     """
     if not timestamp_str:
         return None
     
+    # Remove 'Z' and microsegundos if it exists
     timestamp_str = timestamp_str.replace('Z', '')
+    # remove microseconds id exist
     if '.' in timestamp_str:
         timestamp_str = timestamp_str.split('.')[0]
+    # Replace 'T' with space
     timestamp_str = timestamp_str.replace('T', ' ')
     
     return timestamp_str
