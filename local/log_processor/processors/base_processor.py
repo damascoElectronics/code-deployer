@@ -46,23 +46,26 @@ class BaseProcessor(ABC):
         Returns:
             True if connected, False otherwise
         """
-        max_retries = 5
-        retry_delay = 5
+        max_retries = 3
+        retry_delay = 2
         
         for attempt in range(max_retries):
             try:
+                if self.db_conn:
+                    try:
+                        self.db_conn.close()
+                    except:
+                        pass
+                
                 self.db_conn = mysql.connector.connect(
                     host=self.config.DB_HOST,
                     port=self.config.DB_PORT,
                     database=self.config.DB_NAME,
                     user=self.config.DB_USER,
                     password=self.config.DB_PASSWORD,
-                    autocommit=False,
-                    # NUEVO: Configuración para mantener conexión viva
-                    pool_reset_session=True,
-                    connection_timeout=30,
-                    # Reconnect automáticamente si se pierde conexión
-                    autocommit=True  # Cambiamos a True para evitar transacciones largas
+                    autocommit=True,  # AVIOD LONG TRANSACTIONS
+                    connection_timeout=10,
+                    pool_reset_session=False
                 )
                 
                 if self.db_conn.is_connected():
@@ -92,15 +95,12 @@ class BaseProcessor(ABC):
                 self.logger.warning("Database connection lost, reconnecting...")
                 return self.connect_db()
             
-            # Test connection with a simple query
-            cursor = self.db_conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
+            # Ping to check connection
+            self.db_conn.ping(reconnect=True, attempts=2, delay=1)
             return True
             
         except Exception as e:
-            self.logger.warning(f"Connection test failed: {e}, reconnecting...")
+            self.logger.warning(f"Connection check failed: {e}, reconnecting...")
             return self.connect_db()
     
     def disconnect_db(self):

@@ -60,15 +60,16 @@ class OGSProcessor(BaseProcessor):
             self.logger.error(f"Error fetching package: {e}")
             return None
     
-    def insert_environment(self, data):
+    ddef insert_environment(self, data):
         """Insert environment data into database."""
         if not data:
             return False
         
+        if not self.ensure_connection():
+            self.logger.error("Cannot insert: no database connection")
+            return False
+
         try:
-            if not self.ensure_connection():
-                self.logger.error("Cannot insert: no database connection")
-                return False
             
             cursor = self.db_conn.cursor()
             
@@ -98,7 +99,6 @@ class OGSProcessor(BaseProcessor):
             )
             
             cursor.execute(query, values)
-            # NO necesitamos commit con autocommit=True
             cursor.close()
             return True
             
@@ -110,7 +110,10 @@ class OGSProcessor(BaseProcessor):
         """Insert link status into database."""
         if not data:
             return False
-        
+        if not self.ensure_connection():
+            self.logger.error("Cannot insert: no database connection")
+            return False
+
         try:
             cursor = self.db_conn.cursor()
             
@@ -140,20 +143,21 @@ class OGSProcessor(BaseProcessor):
             )
             
             cursor.execute(query, values)
-            self.db_conn.commit()
             cursor.close()
             return True
             
         except Exception as e:
             self.logger.error(f"Error inserting link: {e}")
-            self.db_conn.rollback()
             return False
     
     def insert_summary(self, data):
         """Insert pass summary into database."""
         if not data:
             return False
-        
+
+        if not self.ensure_connection():
+            self.logger.error("Cannot insert: no database connection")
+            return False
         try:
             cursor = self.db_conn.cursor()
             
@@ -198,13 +202,11 @@ class OGSProcessor(BaseProcessor):
             )
             
             cursor.execute(query, values)
-            self.db_conn.commit()
             cursor.close()
             return True
             
         except Exception as e:
             self.logger.error(f"Error inserting summary: {e}")
-            self.db_conn.rollback()
             return False
     
     def insert_alerts(self, alerts):
