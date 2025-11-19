@@ -6,12 +6,13 @@ datasources:
     access: proxy
     url: keypool_mysql:3306 
     database: keypool_logs
-    user: ogs_user
+    user: keypool_user
     secureJsonData:
-      password: ogs_password
+      password: keypool_password
     jsonData:
       maxOpenConns: 10
       maxIdleConns: 5
       connMaxLifetime: 14400
+      timezone: "UTC"
     isDefault: true
     editable: true
