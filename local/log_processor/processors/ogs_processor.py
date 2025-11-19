@@ -12,6 +12,22 @@ from pathlib import Path
 from .base_processor import BaseProcessor
 
 
+def parse_timestamp(timestamp_str):
+    """
+    Convierte timestamp ISO (con Z) a formato MySQL.
+    '2025-11-19T10:49:48Z' -> '2025-11-19 10:49:48'
+    """
+    if not timestamp_str:
+        return None
+    
+    timestamp_str = timestamp_str.replace('Z', '')
+    if '.' in timestamp_str:
+        timestamp_str = timestamp_str.split('.')[0]
+    timestamp_str = timestamp_str.replace('T', ' ')
+    
+    return timestamp_str
+
+
 class OGSProcessor(BaseProcessor):
     """
     Processes OGS monitoring data.
@@ -59,7 +75,7 @@ class OGSProcessor(BaseProcessor):
             weather = data.get('weather', {})
             
             values = (
-                data.get('timestamp'),
+                parse_timestamp(data.get('timestamp')),
                 data.get('ogs_id'),
                 dome.get('is_open'),
                 dome.get('anomaly_detected'),
@@ -103,7 +119,7 @@ class OGSProcessor(BaseProcessor):
             fso = data.get('link_status', {}).get('classical_fso', {})
             
             values = (
-                data.get('timestamp'),
+                parse_timestamp(data.get('timestamp')),
                 data.get('pass_id'),
                 quantum.get('locked'),
                 quantum.get('tracking_status'),
@@ -156,8 +172,8 @@ class OGSProcessor(BaseProcessor):
             values = (
                 data.get('pass_id'),
                 data.get('satellite_id'),
-                data.get('start_time'),
-                data.get('end_time'),
+                parse_timestamp(data.get('start_time')),
+                parse_timestamp(data.get('end_time')),
                 link_lock.get('total_duration_sec'),
                 link_lock.get('locked_duration_sec'),
                 link_lock.get('lock_percentage'),
@@ -202,7 +218,7 @@ class OGSProcessor(BaseProcessor):
                 """
                 
                 values = (
-                    alert.get('timestamp'),
+                    parse_timestamp(alert.get('timestamp')),
                     alert.get('alert_id'),
                     alert.get('severity'),
                     alert.get('severity_code'),
