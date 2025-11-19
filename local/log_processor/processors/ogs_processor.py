@@ -60,7 +60,7 @@ class OGSProcessor(BaseProcessor):
             self.logger.error(f"Error fetching package: {e}")
             return None
     
-    ddef insert_environment(self, data):
+    def insert_environment(self, data):
         """Insert environment data into database."""
         if not data:
             return False
