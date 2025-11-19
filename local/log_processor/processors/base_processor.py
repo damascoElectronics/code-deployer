@@ -14,7 +14,7 @@ class BaseProcessor(ABC):
     Abstract base class for all data processors.
     
     Provides:
-    - Database connection management
+    - Database connection management with auto-reconnect
     - Common logging setup
     - Standard start/stop interface
     """
@@ -57,10 +57,18 @@ class BaseProcessor(ABC):
                     database=self.config.DB_NAME,
                     user=self.config.DB_USER,
                     password=self.config.DB_PASSWORD,
-                    autocommit=False
+                    autocommit=False,
+                    # NUEVO: Configuración para mantener conexión viva
+                    pool_reset_session=True,
+                    connection_timeout=30,
+                    # Reconnect automáticamente si se pierde conexión
+                    autocommit=True  # Cambiamos a True para evitar transacciones largas
                 )
-                self.logger.info("Connected to database")
-                return True
+                
+                if self.db_conn.is_connected():
+                    self.logger.info("Connected to database")
+                    return True
+                    
             except mysql.connector.Error as e:
                 self.logger.warning(
                     f"Database connection attempt {attempt + 1}/{max_retries} failed: {e}"
@@ -71,6 +79,29 @@ class BaseProcessor(ABC):
         
         self.logger.error("Failed to connect to database after all retries")
         return False
+    
+    def ensure_connection(self):
+        """
+        Ensure database connection is alive, reconnect if needed.
+        
+        Returns:
+            True if connected, False otherwise
+        """
+        try:
+            if self.db_conn is None or not self.db_conn.is_connected():
+                self.logger.warning("Database connection lost, reconnecting...")
+                return self.connect_db()
+            
+            # Test connection with a simple query
+            cursor = self.db_conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Connection test failed: {e}, reconnecting...")
+            return self.connect_db()
     
     def disconnect_db(self):
         """Close database connection."""

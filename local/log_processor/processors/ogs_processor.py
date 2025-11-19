@@ -66,6 +66,10 @@ class OGSProcessor(BaseProcessor):
             return False
         
         try:
+            if not self.ensure_connection():
+                self.logger.error("Cannot insert: no database connection")
+                return False
+            
             cursor = self.db_conn.cursor()
             
             query = """
@@ -94,13 +98,12 @@ class OGSProcessor(BaseProcessor):
             )
             
             cursor.execute(query, values)
-            self.db_conn.commit()
+            # NO necesitamos commit con autocommit=True
             cursor.close()
             return True
             
         except Exception as e:
             self.logger.error(f"Error inserting environment: {e}")
-            self.db_conn.rollback()
             return False
     
     def insert_link(self, data):
@@ -310,3 +313,5 @@ class OGSProcessor(BaseProcessor):
         
         self.disconnect_db()
         self.logger.info("OGS Processor stopped")
+     
+     
