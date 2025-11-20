@@ -1,31 +1,24 @@
-#!/usr/bin/env python3
 """
-Configuration module for log_collector
-Centralizes all environment variables and settings
+Configuration for Log Collector
 """
-
 import os
 
-# Log Generation Configuration
-SITE_ID = int(os.getenv('SITE_ID', '100'))
-SOURCE_SITES = [101, 102, 103]  # Source sites for key generation
-KEY_POOL_TYPES = ['PUBLIC', 'PRIVATE', 'SHARED']
 
-# Batch Configuration
-MIN_BATCH_SIZE = int(os.getenv('MIN_BATCH_SIZE', '20'))
-MAX_BATCH_SIZE = int(os.getenv('MAX_BATCH_SIZE', '30'))
-MIN_SLEEP_SECONDS = int(os.getenv('MIN_SLEEP_SECONDS', '30'))
-MAX_SLEEP_SECONDS = int(os.getenv('MAX_SLEEP_SECONDS', '60'))
-
-# Storage Configuration
-LOG_OUTPUT_DIR = os.getenv(
-    'LOG_OUTPUT_DIR',
-    '/app/logs' if os.path.exists('/app') else './logs'
-)
-
-# HTTP Server Configuration
-HTTP_HOST = os.getenv('HTTP_HOST', '0.0.0.0')
-HTTP_PORT = int(os.getenv('HTTP_PORT', '8080'))
-
-# Logging Configuration
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+class Config:
+    """Configuration for log collector."""
+    
+    # OGS Data Provider URL (será reemplazado por proveedor real en futuro)
+    OGS_PROVIDER_URL = os.getenv(
+        "OGS_PROVIDER_URL",
+        "http://ogs-data-generator:5000"
+    )
+    
+    # Fetch configuration
+    FETCH_INTERVAL = int(os.getenv("FETCH_INTERVAL", "10"))  # seconds
+    FETCH_TIMEOUT = int(os.getenv("FETCH_TIMEOUT", "5"))  # seconds
+    
+    # Storage configuration
+    DATA_DIR = os.getenv("DATA_DIR", "/app/collected_data")
+    
+    # HTTP Server configuration
+    HTTP_SERVER_PORT = int(os.getenv("HTTP_SERVER_PORT", "8080"))
