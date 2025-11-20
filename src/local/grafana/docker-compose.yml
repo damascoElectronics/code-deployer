@@ -14,14 +14,12 @@ services:
       - GF_SERVER_ROOT_URL=http://0.0.0.0:3000
       - GF_SECURITY_ALLOW_EMBEDDING=true
     volumes:
-      # Configuración de datasources
       - ./config/datasources:/etc/grafana/provisioning/datasources
-      # Dashboards
       - ./dashboards:/etc/grafana/provisioning/dashboards
-      # Persistencia de datos de Grafana
       - grafana-storage:/var/lib/grafana
     networks:
       - monitoring-network
+      - ogs_network
     depends_on:
       - check-mysql
     healthcheck:
@@ -30,20 +28,20 @@ services:
       timeout: 10s
       retries: 3
 
-  # Servicio auxiliar para verificar que MySQL esté listo
   check-mysql:
     image: busybox:latest
     container_name: check-mysql
     command: >
       sh -c "
-      echo 'Esperando a que MySQL esté listo en host.docker.internal:3307...';
-      while ! nc -z host.docker.internal 3307; do
+      echo 'Esperando a que MySQL esté listo en keypool_mysql:3306...';
+      while ! nc -z keypool_mysql 3306; do
         echo 'MySQL no está listo aún...';
         sleep 2;
       done;
       echo 'MySQL está listo!';
       "
-    network_mode: host
+    networks:
+      - ogs_network  # ← Misma red
 
 volumes:
   grafana-storage:
@@ -53,3 +51,5 @@ networks:
   monitoring-network:
     driver: bridge
     name: monitoring-network
+  ogs_network:
+    external: true
