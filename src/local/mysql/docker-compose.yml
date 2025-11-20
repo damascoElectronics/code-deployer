@@ -2,25 +2,31 @@ version: '3.8'
 
 services:
   mysql:
-    image: mysql:8.0
-    container_name: keypool_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password_change_me
+    image: mysql:5.7
+    container_name: ogs_mysql
+    environment: 
+      MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: keypool_logs
-      MYSQL_USER: keypool_user
-      MYSQL_PASSWORD: keypool_password
+      MYSQL_USER: ogs_user
+      MYSQL_PASSWORD: ogs_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./init:/docker-entrypoint-initdb.d:ro
+      - ./init:/docker-entrypoint-initdb.d
+    networks:
+      - ogs_network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
       interval: 10s
       timeout: 5s
       retries: 5
+    command: --sql_mode="" --max_allowed_packet=64M
+
+networks:
+  ogs_network:
+    driver: bridge
 
 volumes:
   mysql_data:
-    driver: local
