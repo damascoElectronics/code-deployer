@@ -1,50 +1,55 @@
 version: '3.8'
 
 services:
-  gitlab:
-    image: gitlab/gitlab-ce:latest
-    container_name: gitlab
-    restart: always
-    hostname: 'gitlab.local'
-    environment:
-      GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://172.16.192.98/
-  
+   # OGS Data Generator - Simulator of the OGS
+  ogs-data-generator:
+    build:
+      context: ./ogs_data_generator
+      dockerfile: Dockerfile
+    container_name: ogs_data_generator
     ports:
-      - '80:80'
-      - '443:443'
-      - '22:22'
-    volumes:
-      - '/srv/gitlab/config:/etc/gitlab'
-      - '/srv/gitlab/logs:/var/log/gitlab'
-      - '/srv/gitlab/data:/var/opt/gitlab'
-    networks:
-      - gitlab_network
-
-  # GitLab Runner
-  gitlab-runner:
-    image: gitlab/gitlab-runner:latest
-    container_name: gitlab-runner
-    restart: always
-    volumes:
-      - /srv/gitlab-runner/config:/etc/gitlab-runner
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - gitlab_network
-
-  # Container 1 - Log Processor
-  container1:
-    build: ./container1
-    container_name: log_processor
-    restart: unless-stopped
+      - "5000:5000"  # Accesible en 192.168.0.11:5000
     environment:
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
-    volumes:
-      - ./data:/data
+      - OGS_ID=OGS-001
+      - SATELLITE_ID=SAT-Alpha-01
+      - HOST=0.0.0.0
+      - PORT=5000
+      - UPDATE_INTERVAL=5
     networks:
-      - gitlab_network
+      - ogs_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Log Collector - data pakaging
+  log-collector:
+    build:
+      context: ./log_collector
+      dockerfile: Dockerfile
+    container_name: log_collector
+    ports:
+      - "8080:8080"  # Accesable from 192.168.0.11:8080
+    environment:
+      - OGS_PROVIDER_URL=http://ogs-data-generator:5000
+      - FETCH_INTERVAL=10
+      - FETCH_TIMEOUT=5
+      - DATA_DIR=/app/collected_data
+      - HTTP_SERVER_PORT=8080
+    volumes:
+      - ./data/collected_data:/app/collected_data
+    networks:
+      - ogs_network
+    depends_on:
+      - ogs-data-generator
+    restart: unless-stopped
 
 networks:
-  gitlab_network:
+  ogs_network:
     driver: bridge
+
+volumes:
+  collected_data:
