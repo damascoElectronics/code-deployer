@@ -88,12 +88,12 @@ quality-gate:
       # Final decision
       if [ "$QUALITY_GATE_PASSED" = false ]; then
         echo ""
-        echo "🚨 QUALITY GATE FAILED - Merge blocked"
+        echo "QUALITY GATE FAILED - Merge blocked"
         echo "Fix the issues above before proceeding"
         exit 1
       else
         echo ""
-        echo "🎉 QUALITY GATE PASSED - Ready to merge"
+        echo "QUALITY GATE PASSED - Ready to merge"
         echo "All quality and security checks passed!"
       fi
       

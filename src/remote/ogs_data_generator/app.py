@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-OGS Data Generator - External Provider Simulator
+OGS Data Generator - External Provider Simulator.
 
 Simulates an external OGS data provider service.
-Generates synthetic monitoring data and exposes it via HTTP endpoints.
+Generates synthetic monitoring data and exposes via HTTP.
 """
 
 import json
@@ -15,7 +15,9 @@ import sys
 import threading
 import logging
 from datetime import datetime, timedelta
+
 from flask import Flask, jsonify
+
 from config import Config
 
 logging.basicConfig(

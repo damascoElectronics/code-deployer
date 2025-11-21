@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Log Collector
+Parser module for log_processor.
 
-1. Consulta a OGS Data Generator (http://ogs-data-generator:5000)
-2. Empaqueta datos del OGS + logs propios
-3. Expone HTTP API para que Log Processor lo consuma
+Handles parsing log files and storing data in database.
 """
 
 import sys
 import signal
 import time
 import logging
-import requests
 import json
 from datetime import datetime
 from pathlib import Path
+
+import requests
 from flask import Flask, jsonify, send_file
 from threading import Thread
+
 from config import Config
 
 logging.basicConfig(
