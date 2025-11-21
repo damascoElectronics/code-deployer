@@ -1,113 +1,43 @@
-"""Global pytest configuration and fixtures.
+"""Global pytest configuration - Mock config module."""
 
-This module contains shared fixtures and configuration for all tests
-in the project.
-"""
-
-import os
-import tempfile
+import sys
 import pytest
-from typing import Generator
+from unittest.mock import MagicMock
 
 
-@pytest.fixture(scope="session")
-def test_data_dir() -> str:
-    """Fixture that provides the path to test data directory."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "data")
-
-
-@pytest.fixture
-def temp_directory() -> Generator[str, None, None]:
-    """Fixture that provides a temporary directory for tests."""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
+@pytest.fixture(scope="session", autouse=True)
+def mock_config_module():
+    """Mock config module for all tests."""
+    config_mock = MagicMock()
+    
+    # MySQL config
+    config_mock.MYSQL_HOST = '127.0.0.1'
+    config_mock.MYSQL_PORT = 3306
+    config_mock.MYSQL_USER = 'test_user'
+    config_mock.MYSQL_PASSWORD = 'test_pass'
+    config_mock.MYSQL_DATABASE = 'test_db'
+    
+    # Log processor config
+    config_mock.VM2_HOST = '192.168.0.11'
+    config_mock.VM2_PORT = 8080
+    config_mock.VM2_API_URL = 'http://192.168.0.11:8080'
+    config_mock.POLL_INTERVAL = 30
+    config_mock.DOWNLOAD_DIR = '/tmp/test_downloads'
+    config_mock.PROCESSED_FILES_LOG = '/tmp/.processed_files.txt'
+    config_mock.LOG_LEVEL = 'INFO'
+    
+    # OGS config
+    config_mock.OGS_PROVIDER_URL = 'http://ogs-data-generator:5000'
+    config_mock.FETCH_INTERVAL = 10
+    config_mock.FETCH_TIMEOUT = 5
+    config_mock.DATA_DIR = '/tmp/test_data'
+    config_mock.HTTP_SERVER_PORT = 8080
+    
+    # Inject into sys.modules
+    sys.modules['config'] = config_mock
+    
+    yield config_mock
     
     # Cleanup
-    import shutil
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def sample_text_file(temp_directory: str) -> str:
-    """Fixture that creates a sample text file for testing."""
-    file_path = os.path.join(temp_directory, "sample.txt")
-    
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write("Sample line 1\n")
-        f.write("Sample line 2\n")
-        f.write("\n")  # Empty line
-        f.write("Sample line 4\n")
-        f.write("Sample line 5\n")
-    
-    return file_path
-
-
-@pytest.fixture
-def large_text_file(temp_directory: str) -> str:
-    """Fixture that creates a large text file for performance testing."""
-    file_path = os.path.join(temp_directory, "large_sample.txt")
-    
-    with open(file_path, 'w', encoding='utf-8') as f:
-        for i in range(1000):
-            f.write(f"Large file line {i}\n")
-    
-    return file_path
-
-
-@pytest.fixture
-def empty_text_file(temp_directory: str) -> str:
-    """Fixture that creates an empty text file for testing."""
-    file_path = os.path.join(temp_directory, "empty.txt")
-    
-    with open(file_path, 'w', encoding='utf-8') as f:
-        pass  # Create empty file
-    
-    return file_path
-
-
-@pytest.fixture
-def csv_test_file(temp_directory: str) -> str:
-    """Fixture that creates a CSV file for testing."""
-    file_path = os.path.join(temp_directory, "test.csv")
-    
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write("name,age,city\n")
-        f.write("John,25,New York\n")
-        f.write("Jane,30,Los Angeles\n")
-        f.write("Bob,35,Chicago\n")
-    
-    return file_path
-
-
-# Pytest configuration
-def pytest_configure(config):
-    """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "unit: marks tests as unit tests (deselect with '-m \"not unit\"')"
-    )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests (deselect with '-m \"not integration\"')"
-    )
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
-    )
-    config.addinivalue_line(
-        "markers", "skip_coverage: skip coverage for this test"
-    )
-
-
-def pytest_collection_modifyitems(config, items):
-    """Modify test collection to add markers automatically."""
-    for item in items:
-        # Add unit marker to tests in unit directory
-        if "unit" in str(item.fspath):
-            item.add_marker(pytest.mark.unit)
-        
-        # Add integration marker to tests in integration directory
-        if "integration" in str(item.fspath):
-            item.add_marker(pytest.mark.integration)
-        
-        # Add slow marker to tests that take longer
-        if "performance" in item.name or "large_file" in item.name:
-            item.add_marker(pytest.mark.slow)
+    if 'config' in sys.modules:
+        del sys.modules['config']
