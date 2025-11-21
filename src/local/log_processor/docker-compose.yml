@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  log-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: log_processor
+    environment:
+      - DB_HOST=keypool_mysql
+      - DB_PORT=3306
+      - DB_NAME=keypool_logs
+      - DB_USER=ogs_user
+      - DB_PASSWORD=ogs_password
+      - ENABLE_KEYPOOL=false
+      - ENABLE_OGS=true
+      - OGS_COLLECTOR_URL=http://192.168.0.11:8080
+      - OGS_PROCESS_INTERVAL=15
+    networks:
+      - ogs_network
+    restart: unless-stopped
+
+networks:
+  ogs_network:
+    external: true

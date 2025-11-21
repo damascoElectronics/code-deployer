@@ -1,29 +1,76 @@
-#!/usr/bin/env python3
 """
-Configuration module for log_processor
-Centralizes all environment variables and settings
+Unified Configuration for all processors
 """
-
 import os
 
-# VM2 API Configuration
-VM2_HOST = os.getenv('VM2_HOST', '192.168.0.11')
-VM2_PORT = int(os.getenv('VM2_PORT', '8080'))
-VM2_API_URL = f"http://{VM2_HOST}:{VM2_PORT}"
 
-# Polling Configuration
-POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '30'))  # seconds
-
-# Storage Configuration
-DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', './downloaded_logs')
-PROCESSED_FILES_LOG = os.path.join(DOWNLOAD_DIR, '.processed_files.txt')
-
-# MySQL Configuration
-MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
-MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
-MYSQL_USER = os.getenv('MYSQL_USER', 'keypool_user')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', 'keypool_password')
-MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'keypool_logs')
-
-# Logging Configuration
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+class Config:
+    """
+    Centralized configuration for all data processors.
+    
+    Each processor can access common settings (DB, logging)
+    and processor-specific settings.
+    """
+    
+    # ============================================================
+    # Database Configuration (Shared by all processors)
+    # ============================================================
+    DB_HOST = os.getenv("DB_HOST", "keypool_mysql")
+    DB_PORT = int(os.getenv("DB_PORT", "3306"))
+    DB_NAME = os.getenv("DB_NAME", "keypool_logs")  # ← Base de datos compartida
+    DB_USER = os.getenv("DB_USER", "ogs_user")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "ogs_password")
+    
+    # ============================================================
+    # Processor Enable/Disable Flags
+    # ============================================================
+    ENABLE_KEYPOOL = os.getenv("ENABLE_KEYPOOL", "true").lower() == "true"
+    ENABLE_OGS = os.getenv("ENABLE_OGS", "true").lower() == "true"
+    # Future processors:
+    # ENABLE_CAMERA = os.getenv("ENABLE_CAMERA", "false").lower() == "true"
+    # ENABLE_WEATHER = os.getenv("ENABLE_WEATHER", "false").lower() == "true"
+    
+    # ============================================================
+    # KeyPool Processor Configuration
+    # ============================================================
+    KEYPOOL_LOG_DIR = os.getenv("KEYPOOL_LOG_DIR", "/data/keypool_logs")
+    KEYPOOL_PROCESS_INTERVAL = int(os.getenv("KEYPOOL_PROCESS_INTERVAL", "30"))
+    
+    # ============================================================
+    # OGS Processor Configuration
+    # ============================================================
+    OGS_COLLECTOR_URL = os.getenv(
+        "OGS_COLLECTOR_URL",
+        "http://192.168.0.11:8080"
+    )
+    OGS_PROCESS_INTERVAL = int(os.getenv("OGS_PROCESS_INTERVAL", "15"))
+    OGS_DOWNLOAD_DIR = os.getenv("OGS_DOWNLOAD_DIR", "/app/downloads/ogs")
+    OGS_SAVE_DOWNLOADS = os.getenv("OGS_SAVE_DOWNLOADS", "true").lower() == "true"
+    
+    # ============================================================
+    # Future: Camera Processor Configuration
+    # ============================================================
+    # CAMERA_RTSP_URL = os.getenv("CAMERA_RTSP_URL", "rtsp://camera:554/stream")
+    # CAMERA_CAPTURE_INTERVAL = int(os.getenv("CAMERA_CAPTURE_INTERVAL", "60"))
+    
+    # ============================================================
+    # Future: Weather Processor Configuration
+    # ============================================================
+    # WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "")
+    # WEATHER_LOCATION = os.getenv("WEATHER_LOCATION", "Luxembourg")
+    # WEATHER_FETCH_INTERVAL = int(os.getenv("WEATHER_FETCH_INTERVAL", "300"))
+    
+    # ============================================================
+    # Logging Configuration
+    # ============================================================
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    
+    def __repr__(self):
+        """String representation for debugging."""
+        return (
+            f"Config(\n"
+            f"  DB: {self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}\n"
+            f"  KeyPool: {'Enabled' if self.ENABLE_KEYPOOL else 'Disabled'}\n"
+            f"  OGS: {'Enabled' if self.ENABLE_OGS else 'Disabled'}\n"
+            f")"
+        )

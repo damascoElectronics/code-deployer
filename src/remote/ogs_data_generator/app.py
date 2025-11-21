@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OGS Data Generator - External Provider Simulator.
+OGS Data Generator - External Provider Simulator
 
 Simulates an external OGS data provider service.
 Generates synthetic monitoring data and exposes it via HTTP endpoints.
@@ -15,9 +15,7 @@ import sys
 import threading
 import logging
 from datetime import datetime, timedelta
-
 from flask import Flask, jsonify
-
 from config import Config
 
 logging.basicConfig(
@@ -47,48 +45,26 @@ def now():
 
 
 def randfloat(base, variance):
-    """
-    Generate random float with variance.
-    
-    Args:
-        base: Base value
-        variance: Variance range
-        
-    Returns:
-        Random float value
-    """
+    """Generate random float with variance."""
     return round(base + random.uniform(-variance, variance), 2)
 
 
 def randint(base, variance):
-    """
-    Generate random integer with variance.
-    
-    Args:
-        base: Base value
-        variance: Variance range
-        
-    Returns:
-        Random integer value
-    """
+    """Generate random integer with variance."""
     return base + random.randint(-variance, variance)
 
 
 def generate_environment_status():
     """Generate current environment status data."""
-    last_opened_time = datetime.utcnow() - timedelta(
-        minutes=random.randint(0, 15)
-    )
-    
     return {
         "timestamp": now(),
         "ogs_id": config.OGS_ID,
         "dome_status": {
             "is_open": random.choice([True, True, True, False]),
-            "last_opened": last_opened_time.isoformat() + "Z",
-            "anomaly_detected": random.choice(
-                [False, False, False, True]
-            )
+            "last_opened": (datetime.utcnow() - timedelta(
+                minutes=random.randint(0, 15)
+            )).isoformat() + "Z",
+            "anomaly_detected": random.choice([False, False, False, True])
         },
         "weather": {
             "wind_speed_mps": randfloat(3.5, 1.5),
@@ -105,15 +81,7 @@ def generate_environment_status():
 
 
 def generate_link_status(pass_id):
-    """
-    Generate current quantum and classical link status.
-    
-    Args:
-        pass_id: Current pass identifier
-        
-    Returns:
-        Dictionary with link status data
-    """
+    """Generate current quantum and classical link status."""
     qber = max(0.005, random.gauss(0.015, 0.005))
     
     return {
@@ -122,9 +90,7 @@ def generate_link_status(pass_id):
         "link_status": {
             "quantum": {
                 "locked": random.random() > 0.05,
-                "tracking_status": random.choice([
-                    "TRACKING", "LOST", "LOCKED"
-                ]),
+                "tracking_status": random.choice(["TRACKING", "LOST", "LOCKED"]),
                 "qber": round(qber, 4),
                 "link_power_margin_dB": randfloat(3.0, 0.8),
                 "received_power_dBm": randfloat(-43.5, 1.5),
@@ -133,31 +99,22 @@ def generate_link_status(pass_id):
             "classical_fso": {
                 "uplink_power_dBm": randfloat(-10.5, 1.0),
                 "downlink_power_dBm": randfloat(-11.2, 1.0),
-                "status": random.choice([
-                    "active", "active", "active", "idle"
-                ])
+                "status": random.choice(["active", "active", "active", "idle"])
             }
         }
     }
 
 
 def generate_pass_summary(pass_id):
-    """
-    Generate satellite pass summary.
-    
-    Args:
-        pass_id: Pass identifier
-        
-    Returns:
-        Dictionary with pass summary data
-    """
+    """Generate satellite pass summary."""
     lock_percentage = randfloat(95, 3)
-    start_time = datetime.utcnow() - timedelta(minutes=15)
     
     return {
         "pass_id": pass_id,
         "satellite_id": config.SATELLITE_ID,
-        "start_time": start_time.isoformat() + "Z",
+        "start_time": (datetime.utcnow() - timedelta(
+            minutes=15
+        )).isoformat() + "Z",
         "end_time": now(),
         "link_lock": {
             "total_duration_sec": 900,
@@ -192,15 +149,7 @@ def generate_pass_summary(pass_id):
 
 
 def generate_alert(pass_id):
-    """
-    Generate system alert based on conditions.
-    
-    Args:
-        pass_id: Related pass identifier
-        
-    Returns:
-        Alert dictionary or None
-    """
+    """Generate system alert based on conditions."""
     if random.random() > 0.85:
         return {
             "timestamp": now(),
@@ -214,8 +163,7 @@ def generate_alert(pass_id):
             ]),
             "component_id": f"SCU-{random.randint(1, 3):02d}",
             "description": random.choice([
-                "Precipitation detected during satellite pass. "
-                "Dome closed automatically.",
+                "Precipitation detected during satellite pass. Dome closed automatically.",
                 "Lost tracking lock, attempting recovery.",
                 "High QBER detected, monitoring subsystem notified."
             ]),
@@ -263,9 +211,7 @@ def update_data():
     while True:
         try:
             with data_lock:
-                current_data["environment"] = (
-                    generate_environment_status()
-                )
+                current_data["environment"] = generate_environment_status()
                 current_data["link"] = generate_link_status(pass_id)
                 current_data["summary"] = generate_pass_summary(pass_id)
                 current_data["schedule"] = schedule
@@ -273,13 +219,11 @@ def update_data():
                 alert = generate_alert(pass_id)
                 if alert:
                     current_data["alerts"].insert(0, alert)
-                    current_data["alerts"] = (
-                        current_data["alerts"][:10]
-                    )
+                    current_data["alerts"] = current_data["alerts"][:10]
             
             time.sleep(config.UPDATE_INTERVAL)
-        except Exception as error:
-            logger.error("Error updating data: %s", error, exc_info=True)
+        except Exception as e:
+            logger.error(f"Error updating data: {e}", exc_info=True)
             time.sleep(config.UPDATE_INTERVAL)
 
 
@@ -358,14 +302,14 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    logger.info("=" * 60)
+    logger.info("="*60)
     logger.info("OGS Data Generator - External Provider Simulator")
-    logger.info("=" * 60)
-    logger.info("OGS ID: %s", config.OGS_ID)
-    logger.info("Satellite ID: %s", config.SATELLITE_ID)
-    logger.info("Port: %s", config.PORT)
-    logger.info("Update Interval: %ss", config.UPDATE_INTERVAL)
-    logger.info("=" * 60)
+    logger.info("="*60)
+    logger.info(f"OGS ID: {config.OGS_ID}")
+    logger.info(f"Satellite ID: {config.SATELLITE_ID}")
+    logger.info(f"Port: {config.PORT}")
+    logger.info(f"Update Interval: {config.UPDATE_INTERVAL}s")
+    logger.info("="*60)
     
     # Start background data updater
     updater_thread = threading.Thread(target=update_data, daemon=True)
@@ -373,11 +317,7 @@ def main():
     logger.info("Data updater started")
     
     # Start Flask server
-    logger.info(
-        "Starting HTTP server on %s:%s",
-        config.HOST,
-        config.PORT
-    )
+    logger.info(f"Starting HTTP server on {config.HOST}:{config.PORT}")
     app.run(host=config.HOST, port=config.PORT, debug=False)
 
 
