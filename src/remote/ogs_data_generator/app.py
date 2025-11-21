@@ -83,7 +83,7 @@ def generate_environment_status():
 def generate_link_status(pass_id):
     """Generate current quantum and classical link status."""
     qber = max(0.005, random.gauss(0.015, 0.005))
-    
+
     return {
         "timestamp": now(),
         "pass_id": pass_id,
@@ -108,7 +108,7 @@ def generate_link_status(pass_id):
 def generate_pass_summary(pass_id):
     """Generate satellite pass summary."""
     lock_percentage = randfloat(95, 3)
-    
+
     return {
         "pass_id": pass_id,
         "satellite_id": config.SATELLITE_ID,
@@ -181,7 +181,7 @@ def generate_pass_schedule():
     """Generate upcoming satellite pass schedule."""
     start = datetime.utcnow() + timedelta(minutes=10)
     end = start + timedelta(minutes=15)
-    
+
     return {
         "generated_at": now(),
         "ogs_id": config.OGS_ID,
@@ -207,7 +207,7 @@ def update_data():
     """Background thread to update data periodically."""
     schedule = generate_pass_schedule()
     pass_id = schedule["scheduled_passes"][0]["pass_id"]
-    
+
     while True:
         try:
             with data_lock:
@@ -215,15 +215,15 @@ def update_data():
                 current_data["link"] = generate_link_status(pass_id)
                 current_data["summary"] = generate_pass_summary(pass_id)
                 current_data["schedule"] = schedule
-                
+
                 alert = generate_alert(pass_id)
                 if alert:
                     current_data["alerts"].insert(0, alert)
                     current_data["alerts"] = current_data["alerts"][:10]
-            
+
             time.sleep(config.UPDATE_INTERVAL)
         except Exception as e:
-            logger.error(f"Error updating data: {e}", exc_info=True)
+            logger.error("Error updating data: {e}", exc_info=True)
             time.sleep(config.UPDATE_INTERVAL)
 
 
@@ -291,7 +291,7 @@ def get_all():
         })
 
 
-def signal_handler(sig, frame):
+def signal_handler(_sig, _frame):
     """Handle shutdown signals."""
     logger.info("Shutdown signal received, stopping...")
     sys.exit(0)
@@ -301,23 +301,23 @@ def main():
     """Main entry point."""
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     logger.info("="*60)
     logger.info("OGS Data Generator - External Provider Simulator")
     logger.info("="*60)
-    logger.info(f"OGS ID: {config.OGS_ID}")
-    logger.info(f"Satellite ID: {config.SATELLITE_ID}")
-    logger.info(f"Port: {config.PORT}")
-    logger.info(f"Update Interval: {config.UPDATE_INTERVAL}s")
+    logger.info("OGS ID: {config.OGS_ID}")
+    logger.info("Satellite ID: {config.SATELLITE_ID}")
+    logger.info("Port: {config.PORT}")
+    logger.info("Update Interval: {config.UPDATE_INTERVAL}s")
     logger.info("="*60)
-    
+
     # Start background data updater
     updater_thread = threading.Thread(target=update_data, daemon=True)
     updater_thread.start()
     logger.info("Data updater started")
-    
+
     # Start Flask server
-    logger.info(f"Starting HTTP server on {config.HOST}:{config.PORT}")
+    logger.info("Starting HTTP server on {config.HOST}:{config.PORT}")
     app.run(host=config.HOST, port=config.PORT, debug=False)
 
 

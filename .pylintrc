@@ -1,16 +1,13 @@
 [MASTER]
 load-plugins=pylint.extensions.docparams
-ignore=__pycache__,venv,.venv,build,dist,migrations,tests 
-ignore-paths=^.*/__pycache__/.*$,^.*/\.venv/.*$
 
 [MESSAGES CONTROL]
 disable=missing-module-docstring,
         too-few-public-methods,
         too-many-arguments,
         too-many-locals,
-        duplicate-code
-         import-error,
-        wrong-import-order
+        duplicate-code,
+        import-error
 
 enable=useless-suppression,
        use-symbolic-message-instead
@@ -45,9 +42,3 @@ ignore-imports=no
 
 [MISCELLANEOUS]
 notes=FIXME,XXX,TODO
-
-[DESIGN]
-max-args=10
-max-locals=20
-max-branches=15
-max-statements=60
