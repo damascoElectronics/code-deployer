@@ -1,9 +1,14 @@
--- Database schema for KeyPool log processing system and OGS Monitoring system
--- Drop database if exists (CAUTION: use only in development)
--- DROP DATABASE IF EXISTS keypool_logs;
+-- ============================================================
+-- Combined Database Schema
+-- KeyPool log processing + OGS Monitoring System
+-- ============================================================
 
 CREATE DATABASE IF NOT EXISTS keypool_logs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE keypool_logs;
+
+-- ============================================================
+-- KEYPOOL TABLES (Existing - unchanged)
+-- ============================================================
 
 -- Table for individual key creation events
 CREATE TABLE IF NOT EXISTS key_creations (
@@ -74,7 +79,10 @@ CREATE TABLE IF NOT EXISTS processed_files (
     INDEX idx_processed_at (processed_at)
 ) ENGINE=InnoDB;
 
+-- ============================================================
 -- OGS MONITORING TABLES (New)
+-- ============================================================
+
 -- Environment Data Table
 -- Stores weather and dome status information from OGS
 CREATE TABLE IF NOT EXISTS ogs_environment_data (
@@ -208,7 +216,10 @@ CREATE TABLE IF NOT EXISTS ogs_processed_packages (
     INDEX idx_processed_at (processed_at)
 ) ENGINE=InnoDB COMMENT='Tracking of processed OGS data packages';
 
+-- ============================================================
 -- KEYPOOL VIEWS (Existing - unchanged)
+-- ============================================================
+
 -- View for summary statistics
 CREATE OR REPLACE VIEW key_creation_summary AS
 SELECT 
@@ -244,7 +255,11 @@ SELECT
 FROM key_creations
 GROUP BY DATE(timestamp), key_pool_type
 ORDER BY date DESC, key_pool_type;
+
+-- ============================================================
 -- OGS VIEWS (New)
+-- ============================================================
+
 -- Latest environment conditions
 CREATE OR REPLACE VIEW ogs_v_latest_environment AS
 SELECT 
@@ -301,9 +316,15 @@ FROM ogs_alerts
 WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
 ORDER BY timestamp DESC;
 
+-- ============================================================
 -- Database User Permissions
+-- ============================================================
+
 GRANT ALL PRIVILEGES ON keypool_logs.* TO 'ogs_user'@'%';
 FLUSH PRIVILEGES;
 
+-- ============================================================
 -- Show all tables
+-- ============================================================
+
 SHOW TABLES;

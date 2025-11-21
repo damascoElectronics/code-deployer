@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-   # OGS Data Generator - Simulator of the OGS
+  # OGS Data Generator - Simulador del proveedor externo
   ogs-data-generator:
     build:
       context: ./ogs_data_generator
@@ -25,14 +25,14 @@ services:
       retries: 3
       start_period: 5s
 
-  # Log Collector - data pakaging
+  # Log Collector - Empaquetador de datos
   log-collector:
     build:
       context: ./log_collector
       dockerfile: Dockerfile
     container_name: log_collector
     ports:
-      - "8080:8080"  # Accesable from 192.168.0.11:8080
+      - "8080:8080"  # Accesible en 192.168.0.11:8080
     environment:
       - OGS_PROVIDER_URL=http://ogs-data-generator:5000
       - FETCH_INTERVAL=10
