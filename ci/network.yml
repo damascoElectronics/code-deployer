@@ -1,0 +1,108 @@
+# ================================
+# STAGE: NETWORK
+# ================================
+
+network:test_docker_availability:
+  stage: network
+  script:
+    - |
+      set +x
+      echo -e ${BBlue}Testing Docker availability... ${NC}
+      echo -e ${GREEN}Current directory ${NC}
+      pwd
+      echo -e ${GREEN}Available Docker ${NC}
+      docker --version
+      echo -e ${GREEN}Current user ${NC}
+      whoami
+      echo -e ${GREEN}Docker groups ${NC}
+      groups
+    
+      # Check if user can access docker
+
+      echo -e ${BBlue}Testing Docker access...${NC}
+      sudo docker info || docker info || echo -e ${BRed}Docker access failed - will use sudo in builds${NC}
+    
+      # Test basic Docker functionality
+      
+      echo -e ${BBlue}Testing basic Docker build...${NC}
+      echo "FROM alpine:latest" > test_dockerfile
+      echo "RUN echo -> test" >> test_dockerfile
+      sudo docker build -f test_dockerfile -t test_image . || docker build -f test_dockerfile -t test_image . || echo -e ${BRed}Docker build test failed${NC}
+      sudo docker rmi test_image || docker rmi test_image || true
+      rm test_dockerfile
+  allow_failure: false
+
+network:test_ssh_connection:
+  stage: network
+  needs: [network:test_docker_availability]
+  script:
+    - |
+      set +x
+      echo -e ${BBlue}Testing SSH connection to VM2... ${NC}
+      echo -e ${GREEN}Current directory ${NC}
+      pwd
+      echo -e ${GREEN}Current user ${NC}
+      whoami
+    
+      # Check SSH keys
+      echo -e ${BBlue}Checking SSH keys...${NC}
+      ls -la ~/.ssh/ || echo  -e ${BRed}No .ssh directory found${NC}
+      ls -la ~/.ssh/id_* 2>/dev/null || echo  -e ${BRed}No SSH keys found in standard location${NC}
+    
+      # Test basic connectivity to VM2
+      echo -e ${BBlue}Testing ping to VM2...${NC}
+      ping -c 3 ${IP_POST} || echo -e ${BRed}Ping failed - VPN or network issue${NC}
+    
+      # Test SSH connection
+      echo -e ${BBlue}Testing SSH connection...${NC}
+      ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${VPN_USER}@${IP_POST} 'echo "SSH connection successful from $(hostname) to $(hostname)"' || echo -e ${BRed}SSH connection failed${NC}
+      # Test if we can access VM2 file system
+      echo -e ${BBlue}Testing file system access on VM2...${NC}
+      ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${VPN_USER}@${IP_POST} 'ls -la /home/starion' || echo -e ${BRed}File system access failed${NC}
+    
+      # Test Docker access on VM2
+      echo -e ${BBlue}Testing Docker on VM2...${NC}
+      ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${VPN_USER}@${IP_POST} 'docker --version' || echo -e ${BRed}Docker not accessible on VM2${NC}
+    
+  allow_failure: false
+
+# Test MySQL
+network:test_mysql_setup:
+  stage: network
+  needs: [network:test_docker_availability]
+  script:
+    - |
+      set +x 
+      echo -e ${BBlue}Testing MySQL setup files...${NC}
+      test -f src/local/mysql/init/01-schema.sql && echo -e ${BIGreen}Schema file exists${NC} || echo -e ${BRed}Schema file not accessible${NC}
+      test -f src/local/mysql/docker-compose.yml && echo -e ${BIGreen}MySQL compose file exists${NC} || echo -e ${BRed}MySQL compose file not accessible${NC}
+  only:
+    - main
+    - dev
+    - merge_requests
+
+# Test Grafana configuration
+network:test_grafana_setup:
+  stage: network
+  needs: [network:test_docker_availability]
+  script:
+    - |
+      set +x 
+      echo -e ${BBlue}Testing Grafana setup files...${NC}
+      echo -e ${BBlue}Checking Grafana directory structure...${NC}
+      test -d src/local/grafana && echo -e ${BIGreen}Grafana directory exists${NC} || echo -e ${BRed}Grafana directory missing${NC}
+      test -f src/local/grafana/docker-compose.yml && echo -e ${BIGreen}Grafana compose file exists${NC} || echo -e ${BRed}Grafana compose missing${NC}
+      test -d src/local/grafana/config/datasources && echo -e ${BIGreen}Datasources config directory exists${NC} || echo -e ${BRed}Datasources directory missing${NC}
+      test -f src/local/grafana/config/datasources/mysql.yml && echo -e ${BIGreen}MySQL datasource config exists${NC} || echo -e ${BRed}MySQL datasource missing${NC}
+      test -d src/local/grafana/dashboards && echo -e ${BIGreen}Dashboards directory exists${NC} || echo -e ${BRed}Dashboards directory missing${NC}
+      test -f src/local/grafana/dashboards/keypool-logs-dashboard.json && echo -e ${BIGreen}Dashboard JSON exists${NC} || echo -e ${BRed}Dashboard JSON missing${NC}
+    
+      # Validate JSON dashboard
+      echo -e ${BBlue}Validating dashboard JSON...${NC}
+      python3 -c "import json; json.load(open('src/local/grafana/dashboards/keypool-logs-dashboard.json'))" && echo -e ${BIGreen}Dashboard JSON is valid${NC} || echo -e ${BRed}Invalid JSON${NC}
+    
+  allow_failure: false
+  only:
+    - main
+    - dev
+    - merge_requests

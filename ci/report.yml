@@ -1,0 +1,78 @@
+
+
+# ================================
+# REPORTS & PAGES
+# ================================
+
+pages:
+  stage: build
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  dependencies:
+    - coverage:full
+    - security:semgrep
+    - quality-gate
+  script:
+    - mkdir -p public
+    
+    # Copy coverage reports
+    - cp -r reports/coverage/html/* public/ 2>/dev/null || echo "No coverage HTML reports found"
+    
+    # Create index page with links to all reports
+    - |
+      cat > public/index.html << 'EOF'
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Code Quality Dashboard</title>
+          <style>
+              body { font-family: Arial, sans-serif; margin: 40px; }
+              .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+              .header { color: #333; border-bottom: 2px solid #007cba; padding-bottom: 10px; }
+              a { color: #007cba; text-decoration: none; }
+              a:hover { text-decoration: underline; }
+              .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; }
+              .success { background-color: #28a745; }
+              .warning { background-color: #ffc107; color: black; }
+              .danger { background-color: #dc3545; }
+          </style>
+      </head>
+      <body>
+          <h1 class="header"> Code Quality & Security Dashboard</h1>
+          
+          <div class="card">
+              <h2> Coverage Report</h2>
+              <p>Detailed test coverage analysis</p>
+              <a href="index.html">View Coverage Report</a>
+          </div>
+          
+          <div class="card">
+              <h2> Code Quality</h2>
+              <p>Pylint analysis and style guide compliance</p>
+              <p>Reports available in GitLab artifacts</p>
+          </div>
+          
+          <div class="card">
+              <h2> Security Analysis</h2>
+              <p>SAST, SCA, and secrets detection results</p>
+              <p>Semgrep, Bandit, and Safety reports available in artifacts</p>
+          </div>
+          
+          <div class="card">
+              <h2> Quality Gate</h2>
+              <p>Overall pipeline status and metrics</p>
+              <p>Summary available in GitLab artifacts</p>
+          </div>
+      </body>
+      </html>
+      EOF
+      
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  only:
+    - main
+    - master

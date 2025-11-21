@@ -1,0 +1,24 @@
+# .semgreprc - Semgrep configuration for CI/CD pipeline
+# This file configures which rulesets to use when running 'semgrep --config=auto'
+
+# Python security rules - High confidence rules for Python
+p/python
+p/security-audit
+p/owasp-top-ten
+p/django
+p/flask
+p/sql-injection
+p/xss
+
+# Supply Chain Analysis - Dependency vulnerabilities
+p/supply-chain
+p/secrets
+
+# General security patterns
+p/ci
+p/command-injection
+p/path-traversal
+p/insecure-transport
+
+# Custom rulesets for additional security checks
+p/trailofbits

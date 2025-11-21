@@ -1,0 +1,66 @@
+# .semgrepignore - Files and directories to ignore during Semgrep scans
+
+# Dependencies and virtual environments
+venv/
+.venv/
+env/
+.env/
+site-packages/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build and distribution directories
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing and coverage artifacts (may contain test data with intentional vulnerabilities)
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+reports/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Configuration files that may contain intentional test secrets
+tests/fixtures/
+tests/data/
+conftest.py
+
+# Documentation
+docs/
+*.md
+*.rst
+*.txt
+
+# CI/CD files (may contain intentional configuration)
+.github/
+.gitlab-ci.yml
+Dockerfile*
+docker-compose*
+
+# Migrations (often auto-generated and may have false positives)
+migrations/
+alembic/
+
+# Third-party libraries and tools
+vendor/
