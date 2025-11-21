@@ -28,60 +28,60 @@ logger = logging.getLogger(__name__)
 class UnifiedProcessor:
     """
     Main orchestrator for all data processors.
-    
+
     Manages multiple independent processors that share the same database.
     Each processor runs in its own thread.
     """
-    
+
     def __init__(self):
         self.config = Config()
         self.shutdown_event = Event()
-        
+
         # Initialize processors
         self.processors = {}
-        
+
         # KeyPool Processor
         if self.config.ENABLE_KEYPOOL:
             logger.info("Initializing KeyPool Processor...")
             self.processors['keypool'] = KeyPoolProcessor(self.config)
-        
+
         # OGS Processor
         if self.config.ENABLE_OGS:
             logger.info("Initializing OGS Processor...")
             self.processors['ogs'] = OGSProcessor(self.config)
-        
+
         # Future processors will be added here:
         # if self.config.ENABLE_CAMERA:
         #     self.processors['camera'] = CameraProcessor(self.config)
         # if self.config.ENABLE_WEATHER:
         #     self.processors['weather'] = WeatherProcessor(self.config)
-        
+
         self.threads = []
-    
+
     def setup_signal_handlers(self):
         """Setup graceful shutdown on SIGTERM and SIGINT."""
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
-    
+
     def _handle_shutdown(self, signum, frame):
         """Handle shutdown signal."""
-        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        logger.info("Received signal {signum}, initiating graceful shutdown...")
         self.shutdown_event.set()
         self.stop()
-    
+
     def start(self):
         """Start all enabled processors."""
         logger.info("="*70)
         logger.info("Unified Log Processor Starting")
         logger.info("="*70)
-        logger.info(f"Database: {self.config.DB_HOST}:{self.config.DB_PORT}/{self.config.DB_NAME}")
-        logger.info(f"Enabled Processors: {', '.join(self.processors.keys())}")
+        logger.info("Database: {self.config.DB_HOST}:{self.config.DB_PORT}/{self.config.DB_NAME}")
+        logger.info("Enabled Processors: {', '.join(self.processors.keys())}")
         logger.info("="*70)
-        
+
         if not self.processors:
             logger.error("No processors enabled! Check configuration.")
             return
-        
+
         # Start each processor in its own thread
         for name, processor in self.processors.items():
             thread = Thread(
@@ -92,12 +92,12 @@ class UnifiedProcessor:
             )
             thread.start()
             self.threads.append(thread)
-            logger.info(f"✓ {name.capitalize()} Processor started")
-        
+            logger.info("✓ {name.capitalize()} Processor started")
+
         logger.info("="*70)
         logger.info("All processors running. Press Ctrl+C to stop.")
         logger.info("="*70)
-        
+
         # Wait for shutdown signal
         try:
             self.shutdown_event.wait()
@@ -105,11 +105,11 @@ class UnifiedProcessor:
             logger.info("Keyboard interrupt received")
         finally:
             self.stop()
-    
+
     def _run_processor(self, name, processor):
         """
         Run a processor with error handling.
-        
+
         Args:
             name: Processor name for logging
             processor: Processor instance to run
@@ -117,20 +117,20 @@ class UnifiedProcessor:
         try:
             processor.run()
         except Exception as e:
-            logger.error(f"{name.capitalize()} Processor crashed: {e}", exc_info=True)
+            logger.error("{name.capitalize()} Processor crashed: {e}", exc_info=True)
             # Don't crash the whole application if one processor fails
-    
+
     def stop(self):
         """Stop all processors gracefully."""
         logger.info("Stopping all processors...")
-        
+
         for name, processor in self.processors.items():
             try:
                 processor.stop()
-                logger.info(f"✓ {name.capitalize()} Processor stopped")
+                logger.info("✓ {name.capitalize()} Processor stopped")
             except Exception as e:
-                logger.error(f"Error stopping {name} processor: {e}")
-        
+                logger.error("Error stopping {name} processor: {e}")
+
         logger.info("All processors stopped")
 
 
@@ -138,11 +138,11 @@ def main():
     """Main entry point."""
     app = UnifiedProcessor()
     app.setup_signal_handlers()
-    
+
     try:
         app.start()
     except Exception as e:
-        logger.error(f"Application error: {e}", exc_info=True)
+        logger.error("Application error: {e}", exc_info=True)
         sys.exit(1)
 
 
