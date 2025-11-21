@@ -28,6 +28,11 @@ lint:python_syntax:
       echo -e ${BBlue}Testing log_collector Python syntax...${NC}
       python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log && echo -e ${GREEN}log_collector/app.py syntax ${BIGreen}OK${NC} || ${RED}log_collector/app.py syntax ${BRed}ERROR${NC}
     
+      # Test Container 2 (ogs_data_generator)  
+      echo -e ${BBlue}Testing ogs_data_generator Python syntax...${NC}
+      python3 -m py_compile src/remote/ogs_data_generator/app.py 2>&1 | tee reports/syntax/ogs_data_generator.log && echo -e ${GREEN}ogs_data_generator/app.py syntax ${BIGreen}OK${NC} || ${RED}ogs_data_generator/app.py syntax ${BRed}ERROR${NC}
+    
+
       # Create virtual environment for testing dependencies
       echo -e ${BBlue}Creating virtual environment...${NC}
       python3 -m venv test_venv

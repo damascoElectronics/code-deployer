@@ -12,10 +12,10 @@ import logging
 import json
 from datetime import datetime
 from pathlib import Path
+from threading import Thread
 
 import requests
 from flask import Flask, jsonify, send_file
-from threading import Thread
 
 from config import Config
 
@@ -31,13 +31,14 @@ app = Flask(__name__)
 
 class LogCollector:
     """
-    Collector que:
-    1. Consulta a OGS Data Generator
-    2. Empaqueta datos + logs
-    3. Los guarda para que Log Processor los consuma
+    Collector for OGS Data Generator and packages data.
+    
+    The collector fetches data from multiple endpoints and creates
+    JSON packages for Log Processor consumption.
     """
     
     def __init__(self):
+        """Initialize the LogCollector with configuration."""
         self.config = Config()
         self.running = False
         self._setup_directories()
@@ -52,28 +53,45 @@ class LogCollector:
     def _setup_directories(self):
         """Create data directory."""
         Path(self.config.DATA_DIR).mkdir(parents=True, exist_ok=True)
-        logger.info(f"Data directory: {self.config.DATA_DIR}")
+        logger.info("Data directory: %s", self.config.DATA_DIR)
     
     def fetch_from_ogs(self, endpoint):
-        """Consulta al OGS Data Generator."""
+        """
+        Query OGS Data Generator endpoint.
+        
+        Args:
+            endpoint: API endpoint to query
+            
+        Returns:
+            JSON response or None on error
+        """
         try:
             url = f"{self.config.OGS_PROVIDER_URL}/{endpoint}"
-            response = requests.get(url, timeout=self.config.FETCH_TIMEOUT)
+            response = requests.get(
+                url, 
+                timeout=self.config.FETCH_TIMEOUT
+            )
             response.raise_for_status()
             return response.json()
-        except Exception as e:
-            logger.error(f"Failed to fetch from OGS {endpoint}: {e}")
+        except requests.RequestException as error:
+            logger.error("Failed to fetch from OGS %s: %s", endpoint, error)
             return None
     
     def package_data(self):
         """
-        Empaqueta los datos del OGS + logs propios.
-        Crea un paquete JSON con toda la información.
+        Package OGS data and own logs.
+        
+        Creates a JSON package with all information from OGS endpoints.
+        
+        Returns:
+            True if successful, False otherwise
         """
         try:
-            # Consultar todos los endpoints del OGS
+            # Query all OGS endpoints
             package = {
-                "package_timestamp": datetime.utcnow().isoformat() + "Z",
+                "package_timestamp": (
+                    datetime.utcnow().isoformat() + "Z"
+                ),
                 "collector_id": "log_collector_001",
                 "ogs_provider": self.config.OGS_PROVIDER_URL,
                 "data": {
@@ -90,30 +108,30 @@ class LogCollector:
                 }
             }
             
-            # Guardar paquete
+            # Save package
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             filename = f"{self.config.DATA_DIR}/package_{timestamp}.json"
             
-            with open(filename, 'w') as f:
-                json.dump(package, f, indent=2)
+            with open(filename, 'w', encoding='utf-8') as file:
+                json.dump(package, file, indent=2)
             
-            logger.info(f"Package created: {filename}")
+            logger.info("Package created: %s", filename)
             return True
             
-        except Exception as e:
-            logger.error(f"Error creating package: {e}")
+        except (IOError, OSError) as error:
+            logger.error("Error creating package: %s", error)
             return False
     
     def run(self):
         """Main collection loop."""
         self.running = True
-        logger.info("="*60)
+        logger.info("=" * 60)
         logger.info("Log Collector Started")
-        logger.info("="*60)
-        logger.info(f"OGS Provider: {self.config.OGS_PROVIDER_URL}")
-        logger.info(f"Fetch Interval: {self.config.FETCH_INTERVAL}s")
-        logger.info(f"HTTP Server: Port {self.config.HTTP_SERVER_PORT}")
-        logger.info("="*60)
+        logger.info("=" * 60)
+        logger.info("OGS Provider: %s", self.config.OGS_PROVIDER_URL)
+        logger.info("Fetch Interval: %ss", self.config.FETCH_INTERVAL)
+        logger.info("HTTP Server: Port %s", self.config.HTTP_SERVER_PORT)
+        logger.info("=" * 60)
         
         # Test connection to OGS
         try:
@@ -121,9 +139,12 @@ class LogCollector:
                 f"{self.config.OGS_PROVIDER_URL}/health",
                 timeout=5
             )
-            logger.info(f"OGS Provider status: {response.json().get('status')}")
-        except Exception as e:
-            logger.warning(f"Cannot reach OGS Provider: {e}")
+            logger.info(
+                "OGS Provider status: %s",
+                response.json().get('status')
+            )
+        except requests.RequestException as error:
+            logger.warning("Cannot reach OGS Provider: %s", error)
         
         # Main loop
         while self.running:
@@ -133,16 +154,19 @@ class LogCollector:
                 else:
                     self.stats["failed_fetches"] += 1
                 
-                self.stats["last_fetch"] = datetime.utcnow().isoformat() + "Z"
+                self.stats["last_fetch"] = (
+                    datetime.utcnow().isoformat() + "Z"
+                )
                 
                 logger.info(
-                    f"Fetch #{self.stats['total_fetches']}, "
-                    f"Failed: {self.stats['failed_fetches']}"
+                    "Fetch #%d, Failed: %d",
+                    self.stats['total_fetches'],
+                    self.stats['failed_fetches']
                 )
                 
                 time.sleep(self.config.FETCH_INTERVAL)
-            except Exception as e:
-                logger.error(f"Error in main loop: {e}")
+            except Exception as error:
+                logger.error("Error in main loop: %s", error)
                 time.sleep(self.config.FETCH_INTERVAL)
         
         logger.info("Log Collector stopped")
@@ -157,10 +181,7 @@ class LogCollector:
 collector = LogCollector()
 
 
-# ============================================================
-# HTTP API para Log Processor
-# ============================================================
-
+# HTTP API for Log Processor
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint."""
@@ -176,7 +197,9 @@ def health():
 def list_packages():
     """List all available packages."""
     data_dir = Path(collector.config.DATA_DIR)
-    packages = sorted([f.name for f in data_dir.glob("package_*.json")])
+    packages = sorted([
+        f.name for f in data_dir.glob("package_*.json")
+    ])
     return jsonify({
         "count": len(packages),
         "packages": packages
@@ -191,16 +214,26 @@ def get_latest_package():
     
     if packages:
         latest = packages[-1]
-        with open(latest, 'r') as f:
-            return jsonify(json.load(f))
+        with open(latest, 'r', encoding='utf-8') as file:
+            return jsonify(json.load(file))
     
     return jsonify({"error": "No packages available"}), 404
 
 
 @app.route('/api/packages/<filename>', methods=['GET'])
 def get_package(filename):
-    """Download a specific package."""
-    if not filename.startswith('package_') or not filename.endswith('.json'):
+    """
+    Download a specific package.
+    
+    Args:
+        filename: Name of the package file
+        
+    Returns:
+        File download or error
+    """
+    if not filename.startswith('package_'):
+        return jsonify({"error": "Invalid package name"}), 400
+    if not filename.endswith('.json'):
         return jsonify({"error": "Invalid package name"}), 400
     
     filepath = Path(collector.config.DATA_DIR) / filename
@@ -233,7 +266,7 @@ def main():
     
     # Start HTTP server
     port = collector.config.HTTP_SERVER_PORT
-    logger.info(f"Starting HTTP server on 0.0.0.0:{port}")
+    logger.info("Starting HTTP server on 0.0.0.0:%s", port)
     app.run(host='0.0.0.0', port=port, debug=False)
 
 
