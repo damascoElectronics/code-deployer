@@ -1,6 +1,6 @@
 
 stop:all_containers:
-  stage: deploy
+  stage: stop
   script:
     - echo '========================================='
     - echo 'EXPORTING DATA BEFORE STOPPING CONTAINERS'
@@ -253,7 +253,7 @@ stop:all_containers:
 
 # Export database separately (can be run without stopping containers)
 stop:export_database:
-  stage: deploy
+  stage: stop
   script:
     - echo 'Exporting database without stopping services...'
     - mkdir -p artifacts/database
@@ -360,7 +360,7 @@ stop:export_database:
 
 # Export Grafana dashboards and config separately
 stop:export_grafana:
-  stage: deploy
+  stage: stop
   script:
     - echo 'Exporting Grafana configuration and dashboards...'
     - mkdir -p artifacts/grafana
