@@ -5,7 +5,7 @@ mark_file_processed, and reconnect methods.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, MagicMock, patch, call
 from datetime import datetime
 from mysql.connector import Error
 
@@ -33,7 +33,8 @@ class TestDatabaseManagerAdditional:
         )
 
         assert result is True
-        mock_cursor.execute.assert_called_once()
+        # Use call_count >= 2 because __init__ also calls execute
+        assert mock_cursor.execute.call_count >= 2
         mock_conn.commit.assert_called()
 
     @pytest.mark.unit
@@ -42,7 +43,8 @@ class TestDatabaseManagerAdditional:
         """Test sync latency insertion failure."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.execute.side_effect = Error("Insert failed")
+        # First call succeeds (SELECT DATABASE), second fails (INSERT)
+        mock_cursor.execute.side_effect = [MagicMock(), Error("Insert failed")]
         mock_conn.cursor.return_value = mock_cursor
         mock_conn.is_connected.return_value = True
         mock_connect.return_value = mock_conn
@@ -80,7 +82,7 @@ class TestDatabaseManagerAdditional:
         )
 
         assert result is True
-        mock_cursor.execute.assert_called_once()
+        assert mock_cursor.execute.call_count >= 2
         mock_conn.commit.assert_called()
 
     @pytest.mark.unit
@@ -89,7 +91,8 @@ class TestDatabaseManagerAdditional:
         """Test key count insertion failure."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.execute.side_effect = Error("Insert failed")
+        # First call succeeds (SELECT DATABASE), second fails (INSERT)
+        mock_cursor.execute.side_effect = [MagicMock(), Error("Insert failed")]
         mock_conn.cursor.return_value = mock_cursor
         mock_conn.is_connected.return_value = True
         mock_connect.return_value = mock_conn
@@ -128,7 +131,7 @@ class TestDatabaseManagerAdditional:
         )
 
         assert result is True
-        mock_cursor.execute.assert_called_once()
+        assert mock_cursor.execute.call_count >= 2
         mock_conn.commit.assert_called()
 
     @pytest.mark.unit
@@ -137,7 +140,8 @@ class TestDatabaseManagerAdditional:
         """Test controller sync insertion failure."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.execute.side_effect = Error("Insert failed")
+        # First call succeeds (SELECT DATABASE), second fails (INSERT)
+        mock_cursor.execute.side_effect = [MagicMock(), Error("Insert failed")]
         mock_conn.cursor.return_value = mock_cursor
         mock_conn.is_connected.return_value = True
         mock_connect.return_value = mock_conn
@@ -179,7 +183,7 @@ class TestDatabaseManagerAdditional:
         result = db.mark_file_processed('test.log', 1024, stats)
 
         assert result is True
-        mock_cursor.execute.assert_called_once()
+        assert mock_cursor.execute.call_count >= 2
         mock_conn.commit.assert_called()
 
     @pytest.mark.unit
@@ -188,7 +192,8 @@ class TestDatabaseManagerAdditional:
         """Test file processed marking failure."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.execute.side_effect = Error("Insert failed")
+        # First call succeeds (SELECT DATABASE), second fails (INSERT)
+        mock_cursor.execute.side_effect = [MagicMock(), Error("Insert failed")]
         mock_conn.cursor.return_value = mock_cursor
         mock_conn.is_connected.return_value = True
         mock_connect.return_value = mock_conn
