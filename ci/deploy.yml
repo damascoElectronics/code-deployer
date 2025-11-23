@@ -122,8 +122,8 @@ deploy:deploy_to_vm2:
     - echo '✓ Deployment completed - check logs above for status'
     
   dependencies:
-    - build_log_collector
-    - build_ogs_data_generator
+    - build:build_log_collector
+    - build:build_ogs_data_generator
   only:
     - main
     - dev
@@ -179,8 +179,8 @@ deploy:log_processor_vm1:
     
     
   dependencies:
-    - build_log_processor
-    - deploy_mysql_vm1
+    - build:build_log_processor
+    - deploy:deploy_mysql_vm1
   only:
     - main
     - dev
@@ -314,8 +314,8 @@ deploy:grafana_vm1:
     - echo " Password:\ ${GRAFANA_ADMIN_PASSWORD}"
     
   dependencies:
-    - build_grafana
-    - deploy_mysql_vm1
+    - build:build_grafana
+    - deploy:deploy_mysql_vm1
   only:
     - main
     - dev
@@ -381,10 +381,10 @@ deploy:verify_deployment:
     - echo '  - Grafana (VM1):\ Visualizing data on port ${GRAFANA_PORT}'
     
   dependencies:
-    - deploy_to_vm2
-    - deploy_log_processor_vm1
-    - deploy_mysql_vm1
-    - deploy_grafana_vm1
+    - deploy:deploy_to_vm2
+    - deploy:log_processor_vm1
+    - deploy:deploy_mysql_vm1
+    - deploy:grafana_vm1
   only:
     - main
     - dev
