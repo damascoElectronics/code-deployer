@@ -1,4 +1,3 @@
-
 # ================================
 # STAGE: CODE QUALITY
 # ================================
@@ -28,11 +27,10 @@ lint:python_syntax:
       echo -e ${BBlue}Testing log_collector Python syntax...${NC}
       python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log && echo -e ${GREEN}log_collector/app.py syntax ${BIGreen}OK${NC} || ${RED}log_collector/app.py syntax ${BRed}ERROR${NC}
     
-      # Test Container 2 (ogs_data_generator)  
+      # Test Container 3 (ogs_data_generator)
       echo -e ${BBlue}Testing ogs_data_generator Python syntax...${NC}
       python3 -m py_compile src/remote/ogs_data_generator/app.py 2>&1 | tee reports/syntax/ogs_data_generator.log && echo -e ${GREEN}ogs_data_generator/app.py syntax ${BIGreen}OK${NC} || ${RED}ogs_data_generator/app.py syntax ${BRed}ERROR${NC}
     
-
       # Create virtual environment for testing dependencies
       echo -e ${BBlue}Creating virtual environment...${NC}
       python3 -m venv test_venv
@@ -51,10 +49,10 @@ lint:python_syntax:
       pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
       python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
       cd ../../../
-
+    
       # Install dependencies and test imports for ogs_data_generator
       echo -e ${BBlue}Installing dependencies for ogs_data_generator...${NC}
-      cd src/remote/ogs_data_generator  
+      cd src/remote/ogs_data_generator
       pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/ogs_data_generator_pip_install.log
       python3 -c "import time, logging, datetime, os; print('ogs_data_generator imports OK')" 2>&1 | tee ../../../reports/syntax/ogs_data_generator_imports.log
       cd ../../../
@@ -62,8 +60,7 @@ lint:python_syntax:
       # Test if scripts can run for a few seconds
       echo -e ${BBlue}Testing if scripts can execute...${NC}
       timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo -e ${GREEN}log_processor runs, timeout expected${NC}
-      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${GREEN}log_collector runs, timeout expected${NC}
-      timeout 5 python3 src/remote/ogs_data_generator/app.py 2>&1 | tee reports/syntax/ogs_data_generator_execution.log || echo -e ${GREEN}ogs_data_generator runs, timeout expected${NC}
+      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs, timeout expected${NC}
     
       # Create summary report
       
@@ -73,6 +70,7 @@ lint:python_syntax:
       echo "Files checked:" >> reports/syntax/summary.txt
       echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
       echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
+      echo "- src/remote/ogs_data_generator/app.py" >> reports/syntax/summary.txt
       cat reports/syntax/summary.txt
       echo -e ${BIGreen}SYNTAX CHECK SUMMARY on ${BLUE}summary.txt${NC}
       # Cleanup
@@ -102,29 +100,33 @@ lint:pylint:
     # Run pylint and generate reports
     - mkdir -p reports/pylint
     - pylint src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
+    - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
     - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
-    - pylint src/local/log_processor/processors/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor_processors.txt || true
-    - pylint src/local/log_processor/processors/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor_processors.txt || true    
     
     - pylint src/remote/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
+    - pylint src/remote/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
     - pylint src/remote/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
     
-    - pylint src/remote/ogs_data_generator/*.py --output-format=text --reports=y > reports/pylint/pylint-ogs_data_generator.txt || true
-    - pylint src/remote/ogs_data_generator/*.py --output-format=parseable > reports/pylint/pylint-parseable_ogs_data_generator.txt || true    
+    - pylint src/remote/ogs_data_generator/*.py --output-format=text --reports=y > reports/pylint/pylint-report_ogs_generator.txt || true
+    - pylint src/remote/ogs_data_generator/*.py --output-format=json > reports/pylint/pylint-report_ogs_generator.json || true
+    - pylint src/remote/ogs_data_generator/*.py --output-format=parseable > reports/pylint/pylint-parseable_ogs_generator.txt || true
     
-
+    # Generate consolidated report for quality gate
+    - pylint src/ --output-format=text --reports=y > reports/pylint/pylint-report.txt || true
+    - pylint src/ --output-format=json > reports/pylint/pylint-report.json || true
+    
     # Show summary in console
     - |
       set +x
       echo -e ${BBlue}=== PYLINT SUMMARY ===${NC}
       echo -e ${BBlue}pylint-report_processor ${NC}
       tail -n 20 reports/pylint/pylint-report_processor.txt
-      echo -e ${BBlue}pylint-report_processor_processors ${NC}
-      tail -n 20 reports/pylint/pylint-report_processor_processors.txt
       echo -e ${BBlue}pylint-report_collector ${NC}
       tail -n 20 reports/pylint/pylint-report_collector.txt
-      echo -e ${BBlue}pylint-ogs_data_generatorr ${NC}
-      tail -n 20 reports/pylint/pylint-ogs_data_generator.txt
+      echo -e ${BBlue}pylint-report_ogs_generator ${NC}
+      tail -n 20 reports/pylint/pylint-report_ogs_generator.txt
+      echo -e ${BBlue}pylint-report (consolidated) ${NC}
+      tail -n 20 reports/pylint/pylint-report.txt
       # Check for critical errors (optional)
       echo -e ${BBlue}Check for critical errors  ${NC}
       pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
@@ -134,4 +136,3 @@ lint:pylint:
       - reports/pylint
     expire_in: 1 week
   allow_failure: false
-

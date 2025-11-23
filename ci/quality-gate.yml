@@ -1,120 +1,128 @@
 # ================================
-# STAGE: CODE QUALITY
+# STAGE: QUALITY GATE
 # ================================
 
-lint:python_syntax:
-  stage: lint
+quality-gate:
+  stage: quality-gate
   image: python:3.9
-  tags:
-    - code-quality
-  script:
-    - |
-      set +x
-      echo -e ${BBlue}Python syntax and compilation tests...${NC}
-      echo -e ${GREEN}Python version${NC}
-      python3 --version
-      echo -e ${GREEN}pip version${NC}
-      pip3 --version
-
-      # Create reports directory
-      mkdir -p reports/syntax
-    
-      # Test Container 1 (log_processor)
-      echo -e ${BBlue}Testing log_processor Python syntax...${NC}
-      python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log && echo -e ${GREEN}log_processor/app.py syntax ${BIGreen}OK${NC} || ${RED}log_processor/app.py syntax ${BRed}ERROR${NC}
-    
-      # Test Container 2 (log_collector)  
-      echo -e ${BBlue}Testing log_collector Python syntax...${NC}
-      python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log && echo -e ${GREEN}log_collector/app.py syntax ${BIGreen}OK${NC} || ${RED}log_collector/app.py syntax ${BRed}ERROR${NC}
-    
-      # Create virtual environment for testing dependencies
-      echo -e ${BBlue}Creating virtual environment...${NC}
-      python3 -m venv test_venv
-      source test_venv/bin/activate
-    
-      # Install dependencies and test imports for log_processor
-      echo -e ${BBlue}Installing dependencies for log_processor...${NC}
-      cd src/local/log_processor
-      pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_processor_pip_install.log
-      python3 -c "import time, logging, datetime; print('log_processor imports OK')" 2>&1 | tee ../../../reports/syntax/log_processor_imports.log
-      cd ../../../
-    
-      # Install dependencies and test imports for log_collector
-      echo -e ${BBlue}Installing dependencies for log_collector...${NC}
-      cd src/remote/log_collector  
-      pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
-      python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
-      cd ../../../
-    
-      # Test if scripts can run for a few seconds
-      echo -e ${BBlue}Testing if scripts can execute...${NC}
-      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo -e ${GREEN}log_processor runs, timeout expected${NC}
-      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs, timeout expected${NC}
-    
-      # Create summary report
-      
-      echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
-      date >> reports/syntax/summary.txt
-      echo "" >> reports/syntax/summary.txt
-      echo "Files checked:" >> reports/syntax/summary.txt
-      echo "- src/local/log_processor/app.py" >> reports/syntax/summary.txt
-      echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
-      cat reports/syntax/summary.txt
-      echo -e ${BIGreen}SYNTAX CHECK SUMMARY on ${BLUE}summary.txt${NC}
-      # Cleanup
-      deactivate || true
-      rm -rf test_venv
-  
-  artifacts:
-    when: always
-    paths:
-      - reports/syntax
-    expire_in: 1 week
-  
-  allow_failure: false
-
-lint:pylint:
-  stage: lint
-  needs: [lint:python_syntax]
-  image: python:3.9
+  dependencies:
+    - lint:pylint
+    - coverage:full
+    - security:semgrep
   tags:
     - code-quality
     - static-analysis
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
-    - rm -rf .pylint_cache || true
+  
   script:
-    # Run pylint and generate reports
-    - mkdir -p reports/pylint
-    - pylint src/local/log_processor/*.py --output-format=text --reports=y > reports/pylint/pylint-report_processor.txt || true
-    - pylint src/local/log_processor/*.py --output-format=json > reports/pylint/pylint-report_processor.json || true
-    - pylint src/local/log_processor/*.py --output-format=parseable > reports/pylint/pylint-parseable_processor.txt || true    
-    
-    - pylint src/remote/log_collector/*.py --output-format=text --reports=y > reports/pylint/pylint-report_collector.txt || true
-    - pylint src/remote/log_collector/*.py --output-format=json > reports/pylint/pylint-report_collector.json || true
-    - pylint src/remote/log_collector/*.py --output-format=parseable > reports/pylint/pylint-parseable_collector.txt || true    
-    
-    # Generate consolidated report for quality gate
-    - pylint src/ --output-format=text --reports=y > reports/pylint/pylint-report.txt || true
-    - pylint src/ --output-format=json > reports/pylint/pylint-report.json || true
-    
-    # Show summary in console
     - |
       set +x
-      echo -e ${BBlue}=== PYLINT SUMMARY ===${NC}
-      echo -e ${BBlue}pylint-report_processor ${NC}
-      tail -n 20 reports/pylint/pylint-report_processor.txt
-      echo -e ${BBlue}pylint-report_collector ${NC}
-      tail -n 20 reports/pylint/pylint-report_collector.txt
-      echo -e ${BBlue}pylint-report (consolidated) ${NC}
-      tail -n 20 reports/pylint/pylint-report.txt
-      # Check for critical errors (optional)
-      echo -e ${BBlue}Check for critical errors  ${NC}
-      pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
+      echo "=== COMPREHENSIVE QUALITY GATE VALIDATION ==="
+      
+      # Check if required files exist
+      if [ ! -f "reports/coverage/coverage.json" ]; then
+        echo "ERROR: Coverage report not found"
+        exit 1
+      fi
+      
+      if [ ! -f "reports/pylint/pylint-report.txt" ]; then 
+        echo "ERROR: Pylint report not found"
+        exit 1
+      fi
+      
+      if [ ! -f "reports/security/summary.json" ]; then
+        echo "ERROR: Security report not found"
+        exit 1
+      fi
+      
+      # Extract metrics
+      COVERAGE=$(python -c "import json; data=json.load(open('reports/coverage/coverage.json')); print(data['totals']['percent_covered'])")
+      PYLINT_SCORE=$(cat reports/pylint/pylint-report.txt | grep "Your code has been rated" | cut -d' ' -f7 | cut -d'/' -f1)
+      SECURITY_CRITICAL=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['critical_count'])")
+      SECURITY_HIGH=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['high_count'])")
+      SECURITY_TOTAL=$(python -c "import json; data=json.load(open('reports/security/summary.json')); print(data['total_findings'])")
+      
+      echo "┌─────────────────────────────────────────┐"
+      echo "│            QUALITY METRICS              │"
+      echo "├─────────────────────────────────────────┤"
+      echo "│ Coverage:     $COVERAGE%                   │"
+      echo "│ Pylint:       $PYLINT_SCORE/10                │"
+      echo "│ Sec Critical: $SECURITY_CRITICAL                   │"
+      echo "│ Sec High:     $SECURITY_HIGH                   │"
+      echo "│ Sec Total:    $SECURITY_TOTAL                  │"
+      echo "└─────────────────────────────────────────┘"
+      
+      # Validate thresholds
+      QUALITY_GATE_PASSED=true
+      
+      # Coverage check
+      if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+        echo "FAILED: Coverage below threshold: $COVERAGE% < $COVERAGE_THRESHOLD%"
+        QUALITY_GATE_PASSED=false
+      else
+        echo "PASSED: Coverage above threshold: $COVERAGE% >= $COVERAGE_THRESHOLD%"
+      fi
+      
+      # Pylint check
+      if (( $(echo "$PYLINT_SCORE < $PYLINT_THRESHOLD" | bc -l) )); then
+        echo "FAILED: Pylint score below threshold: $PYLINT_SCORE < $PYLINT_THRESHOLD"
+        QUALITY_GATE_PASSED=false
+      else
+        echo "PASSED: Pylint score above threshold: $PYLINT_SCORE >= $PYLINT_THRESHOLD"
+      fi
+      
+      # Security checks
+      if [ "$SECURITY_CRITICAL" -gt "$SEMGREP_MAX_CRITICAL" ]; then
+        echo "FAILED: Critical security vulnerabilities found: $SECURITY_CRITICAL > $SEMGREP_MAX_CRITICAL"
+        QUALITY_GATE_PASSED=false
+      else
+        echo "PASSED: No critical security vulnerabilities"
+      fi
+      
+      if [ "$SECURITY_HIGH" -gt "$SEMGREP_MAX_HIGH" ]; then
+        echo "FAILED: Too many high severity security issues: $SECURITY_HIGH > $SEMGREP_MAX_HIGH"
+        QUALITY_GATE_PASSED=false
+      else
+        echo "PASSED: High severity security issues within threshold: $SECURITY_HIGH <= $SEMGREP_MAX_HIGH"
+      fi
+      
+      # Final decision
+      if [ "$QUALITY_GATE_PASSED" = false ]; then
+        echo ""
+        echo "QUALITY GATE FAILED - Merge blocked"
+        echo "Fix the issues above before proceeding"
+        exit 1
+      else
+        echo ""
+        echo "QUALITY GATE PASSED - Ready to merge"
+        echo "All quality and security checks passed!"
+      fi
+      
+      # Generate comprehensive quality reports 
+      mkdir -p reports/quality-gate
+      cat > reports/quality-gate/summary.json << EOF
+      {
+        "overall_passed": $QUALITY_GATE_PASSED,
+        "metrics": {
+          "coverage": $COVERAGE,
+          "pylint_score": $PYLINT_SCORE,
+          "security_critical": $SECURITY_CRITICAL,
+          "security_high": $SECURITY_HIGH,
+          "security_total": $SECURITY_TOTAL
+        },
+        "thresholds": {
+          "coverage_threshold": $COVERAGE_THRESHOLD,
+          "pylint_threshold": $PYLINT_THRESHOLD,
+          "security_max_critical": $SEMGREP_MAX_CRITICAL,
+          "security_max_high": $SEMGREP_MAX_HIGH,
+          "security_max_medium": $SEMGREP_MAX_MEDIUM
+        },
+        "timestamp": "$(date -Iseconds)"
+      }
+      EOF
+      
   artifacts:
     when: always
     paths:
-      - reports/pylint
+      - reports/quality-gate/
     expire_in: 1 week
   allow_failure: false
