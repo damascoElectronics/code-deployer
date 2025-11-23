@@ -11,6 +11,8 @@ include:
   - local: '/ci/build.yml'
   - local: '/ci/report.yml'
   - local: '/ci/network.yml'
+  - local: '/ci/deploy.yml'
+  - local: '/ci/stop.yml'
 
 # stages
 stages:
@@ -19,6 +21,7 @@ stages:
   - coverage
   - security
   - quality-gate
+  - network
   - build
   - deploy
-  - network
+  - stop
