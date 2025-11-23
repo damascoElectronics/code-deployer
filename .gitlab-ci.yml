@@ -24,4 +24,4 @@ stages:
   - network
   - build
   - deploy
-  - stop
+  - stop  
