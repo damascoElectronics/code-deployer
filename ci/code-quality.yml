@@ -1,3 +1,4 @@
+
 # ================================
 # STAGE: CODE QUALITY
 # ================================
@@ -10,60 +11,57 @@ lint:python_syntax:
   script:
     - |
       set +x
-      echo -e ${BBlue}Python syntax and compilation tests...${NC}
-      echo -e ${GREEN}Python version${NC}
+      echo "Python syntax and compilation tests..."
       python3 --version
-      echo -e ${GREEN}pip version${NC}
       pip3 --version
 
       # Create reports directory
       mkdir -p reports/syntax
     
       # Test Container 1 (log_processor)
-      echo -e ${BBlue}Testing log_processor Python syntax...${NC}
-      python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log && echo -e ${GREEN}log_processor/app.py syntax ${BIGreen}OK${NC} || ${RED}log_processor/app.py syntax ${BRed}ERROR${NC}
+      echo "Testing log_processor Python syntax..."
+      python3 -m py_compile src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_syntax.log && echo "log_processor/app.py syntax OK" || echo "log_processor/app.py syntax ERROR"
     
       # Test Container 2 (log_collector)  
-      echo -e ${BBlue}Testing log_collector Python syntax...${NC}
-      python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log && echo -e ${GREEN}log_collector/app.py syntax ${BIGreen}OK${NC} || ${RED}log_collector/app.py syntax ${BRed}ERROR${NC}
+      echo "Testing log_collector Python syntax..."
+      python3 -m py_compile src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_syntax.log && echo "log_collector/app.py syntax OK" || echo "log_collector/app.py syntax ERROR"
     
       # Test Container 3 (ogs_data_generator)
-      echo -e ${BBlue}Testing ogs_data_generator Python syntax...${NC}
-      python3 -m py_compile src/remote/ogs_data_generator/app.py 2>&1 | tee reports/syntax/ogs_data_generator.log && echo -e ${GREEN}ogs_data_generator/app.py syntax ${BIGreen}OK${NC} || ${RED}ogs_data_generator/app.py syntax ${BRed}ERROR${NC}
+      echo "Testing ogs_data_generator Python syntax..."
+      python3 -m py_compile src/remote/ogs_data_generator/app.py 2>&1 | tee reports/syntax/ogs_data_generator.log && echo "ogs_data_generator/app.py syntax OK" || echo "ogs_data_generator/app.py syntax ERROR"
     
       # Create virtual environment for testing dependencies
-      echo -e ${BBlue}Creating virtual environment...${NC}
+      echo "Creating virtual environment..."
       python3 -m venv test_venv
       source test_venv/bin/activate
     
       # Install dependencies and test imports for log_processor
-      echo -e ${BBlue}Installing dependencies for log_processor...${NC}
+      echo "Installing dependencies for log_processor..."
       cd src/local/log_processor
       pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_processor_pip_install.log
       python3 -c "import time, logging, datetime; print('log_processor imports OK')" 2>&1 | tee ../../../reports/syntax/log_processor_imports.log
       cd ../../../
     
       # Install dependencies and test imports for log_collector
-      echo -e ${BBlue}Installing dependencies for log_collector...${NC}
+      echo "Installing dependencies for log_collector..."
       cd src/remote/log_collector  
       pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/log_collector_pip_install.log
       python3 -c "import time, logging, datetime, os; print('log_collector imports OK')" 2>&1 | tee ../../../reports/syntax/log_collector_imports.log
       cd ../../../
     
       # Install dependencies and test imports for ogs_data_generator
-      echo -e ${BBlue}Installing dependencies for ogs_data_generator...${NC}
+      echo "Installing dependencies for ogs_data_generator..."
       cd src/remote/ogs_data_generator
       pip install -r requirements.txt 2>&1 | tee ../../../reports/syntax/ogs_data_generator_pip_install.log
       python3 -c "import time, logging, datetime, os; print('ogs_data_generator imports OK')" 2>&1 | tee ../../../reports/syntax/ogs_data_generator_imports.log
       cd ../../../
     
       # Test if scripts can run for a few seconds
-      echo -e ${BBlue}Testing if scripts can execute...${NC}
-      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo -e ${GREEN}log_processor runs, timeout expected${NC}
-      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo -e ${BBlue}log_collector runs, timeout expected${NC}
+      echo "Testing if scripts can execute..."
+      timeout 5 python3 src/local/log_processor/app.py 2>&1 | tee reports/syntax/log_processor_execution.log || echo "log_processor runs, timeout expected"
+      timeout 5 python3 src/remote/log_collector/app.py 2>&1 | tee reports/syntax/log_collector_execution.log || echo "log_collector runs, timeout expected"
     
       # Create summary report
-      
       echo "=== SYNTAX CHECK SUMMARY ===" > reports/syntax/summary.txt
       date >> reports/syntax/summary.txt
       echo "" >> reports/syntax/summary.txt
@@ -72,7 +70,8 @@ lint:python_syntax:
       echo "- src/remote/log_collector/app.py" >> reports/syntax/summary.txt
       echo "- src/remote/ogs_data_generator/app.py" >> reports/syntax/summary.txt
       cat reports/syntax/summary.txt
-      echo -e ${BIGreen}SYNTAX CHECK SUMMARY on ${BLUE}summary.txt${NC}
+      echo "SYNTAX CHECK SUMMARY completed"
+      
       # Cleanup
       deactivate || true
       rm -rf test_venv
@@ -118,17 +117,16 @@ lint:pylint:
     # Show summary in console
     - |
       set +x
-      echo -e ${BBlue}=== PYLINT SUMMARY ===${NC}
-      echo -e ${BBlue}pylint-report_processor ${NC}
+      echo "=== PYLINT SUMMARY ==="
+      echo "pylint-report_processor:"
       tail -n 20 reports/pylint/pylint-report_processor.txt
-      echo -e ${BBlue}pylint-report_collector ${NC}
+      echo "pylint-report_collector:"
       tail -n 20 reports/pylint/pylint-report_collector.txt
-      echo -e ${BBlue}pylint-report_ogs_generator ${NC}
+      echo "pylint-report_ogs_generator:"
       tail -n 20 reports/pylint/pylint-report_ogs_generator.txt
-      echo -e ${BBlue}pylint-report (consolidated) ${NC}
+      echo "pylint-report (consolidated):"
       tail -n 20 reports/pylint/pylint-report.txt
-      # Check for critical errors (optional)
-      echo -e ${BBlue}Check for critical errors  ${NC}
+      echo "Check for critical errors:"
       pylint src/ --fail-under=$PYLINT_THRESHOLD --output-format=text
   artifacts:
     when: always
