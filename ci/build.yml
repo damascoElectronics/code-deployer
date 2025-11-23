@@ -3,21 +3,130 @@
 # STAGE: BUILD
 # ================================
 
-build:
+# Build stage - generate containers for deployment
+build:build_log_processor:
   stage: build
-  image: python:3.9
-  tags:
-    - code-quality
-    - static-analysis
   script:
-    - echo "Building application..."
-    - python -m pip install --upgrade pip
-    - pip install build
-    - python -m build
+    - echo 'Building log_processor container...'
+    - cd src/local/log_processor
+    
+    # Build the Docker image
+    - echo 'Building Docker image for log_processor...'
+    - sudo docker build -t log_processor:latest . || docker build -t log_processor:latest .
+    
+    # Verify the image was built
+    - sudo docker images | grep log_processor || docker images | grep log_processor
+    - echo 'log_processor container built successfully'
+    
+    # Optional - save image info for later use
+    - sudo docker inspect log_processor:latest --format='{{.Id}}' > ../../log_processor_image_id.txt || docker inspect log_processor:latest --format='{{.Id}}' > ../../log_processor_image_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../../log_processor_image_id.txt
+    
   artifacts:
     paths:
-      - dist/
-    expire_in: 1 week
+      - log_processor_image_id.txt
+    expire_in: 1 hour
   only:
     - main
-    - develop
+    - dev
+    - merge_requests
+
+build:build_log_collector:
+  stage: build
+  script:
+    - echo 'Building log_collector container...'
+    - cd src/remote/log_collector
+    
+    # Build the Docker image  
+    - echo 'Building Docker image for log_collector...'
+    - docker build -t log_collector:latest .
+    
+    # Verify the image was built
+    - docker images | grep log_collector
+    - echo '✓ log_collector container built successfully'
+    
+    # Test that dependencies are installed correctly
+    - echo 'Testing dependencies...'
+    - docker run --rm log_collector:latest python -c "import requests; import flask; print('Dependencies OK')"
+    
+    # Optional - save image info for later use
+    - docker inspect log_collector:latest --format='{{.Id}}' > ../../log_collector_image_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../../log_collector_image_id.txt
+    
+  artifacts:
+    paths:
+      - log_collector_image_id.txt
+    expire_in: 1 hour
+  only:
+    - main
+    - dev
+    - merge_requests
+
+build:build_ogs_data_generator:
+  stage: build
+  script:
+    - echo 'Building ogs_data_generator container...'
+    - cd src/remote/ogs_data_generator
+    
+    # Build the Docker image  
+    - echo 'Building Docker image for ogs_data_generator...'
+    - docker build -t ogs_data_generator:latest .
+    
+    # Verify the image was built
+    - docker images | grep ogs_data_generator
+    - echo '✓ ogs_data_generator container built successfully'
+    
+    # Test that dependencies are installed correctly
+    - echo 'Testing dependencies...'
+    - docker run --rm ogs_data_generator:latest python -c "import flask; print('Dependencies OK')"
+    
+    # Optional - save image info for later use
+    - docker inspect ogs_data_generator:latest --format='{{.Id}}' > ../../ogs_data_generator_id.txt
+    - echo 'Image ID saved for reference'
+    - cat ../../ogs_data_generator_id.txt
+
+  artifacts:
+    paths:
+      - ogs_data_generator_id.txt
+    expire_in: 1 hour
+  only:
+    - main
+    - dev
+    - merge_requests
+
+# Build MySQL
+build:build_mysql:
+  stage: build
+  script:
+    - echo 'MySQL uses official image - no build needed'
+    - echo 'MySQL ready'
+  only:
+    - main
+    - dev
+    - merge_requests
+
+build:build_grafana:
+  stage: build
+  script:
+    - echo 'Preparing Grafana configuration...'
+    
+    # Verify Grafana image is available
+    - echo 'Pulling Grafana image...'
+    - sudo docker pull grafana/grafana:latest || docker pull grafana/grafana:latest
+    
+    # Verify image
+    - sudo docker images | grep grafana || docker images | grep grafana
+    
+    # Create necessary volumes
+    - echo 'Creating Grafana volumes...'
+    - sudo docker volume create grafana-storage || docker volume create grafana-storage || echo 'Volume already exists'
+    
+    - echo 'Grafana prepared successfully'
+    
+  only:
+    - main
+    - dev
+    - merge_requests
+
