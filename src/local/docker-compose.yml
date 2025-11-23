@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  container1:
+    build: ./container1
+    container_name: log_processor
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    volumes:
+      # Future: mount volumes for database access, config files, etc.
+      - ./data:/data
+    networks:
+      - log_network
+    # Future: add depends_on for database service
+
+volumes:
+  mysql_data:
+    driver: local
+  log_processor_data:
+    driver: local
+
+networks:
+  log_network:
+    driver: bridge

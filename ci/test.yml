@@ -1,0 +1,49 @@
+# ================================
+# STAGE: TEST
+# ================================
+
+
+test:unit:
+  stage: test
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - rm -rf .pylint_cache || true
+  script:
+    - mkdir -p reports/tests
+    - pytest tests/unit/ -m "unit" --verbose --junitxml=reports/tests/unit-junit.xml
+  artifacts:
+    when: always
+    paths:
+      - reports/tests/
+    reports:
+      junit: reports/tests/unit-junit.xml
+    expire_in: 1 week
+  allow_failure: false
+
+test:integration:
+  stage: test
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - rm -rf .pylint_cache || true
+  script:
+    - mkdir -p reports/tests
+    - pytest tests/integration/ -m "integration" --verbose --junitxml=reports/tests/integration-junit.xml
+  artifacts:
+    when: always
+    paths:
+      - reports/tests/
+    reports:
+      junit: reports/tests/integration-junit.xml
+    expire_in: 1 week
+  allow_failure: false
+

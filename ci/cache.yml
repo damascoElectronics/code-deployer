@@ -1,0 +1,5 @@
+# Cache to speed up builds
+cache:
+  paths:
+    - .cache/pip/
+    - venv/

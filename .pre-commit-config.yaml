@@ -1,0 +1,105 @@
+# .pre-commit-config.yaml
+repos:
+  # 1. Basic verification of the files
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace       # Delate spaces at the end of the line
+      - id: end-of-file-fixer         # asaign a new line at the end of the file
+      - id: check-yaml                # validate the sintax id a YAML file
+      - id: check-json                # validate the sintax id a JSON file
+      - id: check-merge-conflict      # Detect the marks of a merge conflict
+      - id: check-added-large-files   # Prevent commits of big files
+      - id: mixed-line-ending         # Detects mixing of line terminators
+
+  # 2. Python Code Formatting
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=80]      # Consistent with Google Style Guide
+
+  # 3. ordanate the imports
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=80]
+
+  # 4. Pylint
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.0.0
+    hooks:
+      - id: pylint
+        args: [--rcfile=.pylintrc, --score=no]  # No show score on pre-commit
+        additional_dependencies: [pylint-google-style-guide-imports-enforcing]
+        # Only execute python files
+        files: \.py$
+        # Exclude certain files if necessary
+        exclude: ^(migrations/|tests/fixtures/)
+
+  # 5. Type checking with mypy (optional but recommended)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests]
+        args: [--ignore-missing-imports]
+  
+  # 6. Run tests with coverage (fast pre-commit tests)
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest-quick
+        entry: pytest
+        language: system
+        args: [
+          --tb=short,
+          --maxfail=1,
+          -q,
+          tests/unit/,  # Only unit tests for speed
+          --cov=src,
+          --cov-fail-under=70,  # Lower threshold for pre-commit
+          --cov-report=term-missing:skip-covered
+        ]
+        pass_filenames: false
+        types: [python]
+
+  # 7. Check test files exist for new Python modules
+  - repo: local
+    hooks:
+      - id: check-test-files
+        name: check-test-files
+        entry: python
+        language: system
+        args: [-c, "
+          import sys, os, glob;
+          src_files = [f for f in glob.glob('src/**/*.py', recursive=True) if not f.endswith('__init__.py')];
+          missing_tests = [];
+          for src_file in src_files:
+            module_name = os.path.basename(src_file)[:-3];
+            test_file = f'tests/test_{module_name}.py';
+            unit_test_file = f'tests/unit/test_{module_name}.py';
+            if not os.path.exists(test_file) and not os.path.exists(unit_test_file):
+              missing_tests.append(f'Missing test for {src_file}');
+          if missing_tests:
+            print('\\n'.join(missing_tests));
+            sys.exit(1)"
+         ]
+        pass_filenames: false
+        types: [python]
+
+  # 8. Check requirements.txt is sorted
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: requirements-txt-fixer
+
+  # 9. Validate docstrings (Google Style Guide)
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks: 
+      - id: pydocstyle
+        args: [--convention=google]
+        additional_dependencies: [toml]

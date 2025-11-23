@@ -1,0 +1,85 @@
+# ================================
+# STAGE: COVERAGE
+# ================================
+
+coverage:full:
+  stage: coverage
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+    - rm -rf .pylint_cache || true
+  script:
+    - mkdir -p reports/coverage reports/tests
+    
+    # Ejecutar tests con coverage
+    - coverage run -m pytest tests/ --junitxml=reports/tests/junit.xml
+    
+    # Generar reportes de coverage
+    - coverage report --show-missing
+    - coverage html -d reports/coverage/html
+    - coverage xml -o reports/coverage/coverage.xml
+    - coverage json -o reports/coverage/coverage.json
+    
+    # Verificar umbral mínimo
+    - coverage report --fail-under=$COVERAGE_THRESHOLD
+    
+    # Extraer métricas para el dashboard
+    - |
+      COVERAGE_PERCENTAGE=$(coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+      echo "Coverage: $COVERAGE_PERCENTAGE%"
+      echo "COVERAGE_PERCENTAGE=$COVERAGE_PERCENTAGE" > coverage.env
+      
+      # Crear badge data
+      mkdir -p reports/badges
+      echo "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"$COVERAGE_PERCENTAGE%\", \"color\": \"$(if [ ${COVERAGE_PERCENTAGE%.*} -ge 80 ]; then echo 'brightgreen'; elif [ ${COVERAGE_PERCENTAGE%.*} -ge 60 ]; then echo 'yellow'; else echo 'red'; fi)\"}" > reports/badges/coverage.json
+      
+  artifacts:
+    when: always
+    paths:
+      - reports/coverage/
+      - reports/tests/
+      - reports/badges/
+    reports:
+      junit: reports/tests/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: reports/coverage/coverage.xml
+    expire_in: 1 week
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  allow_failure: false
+
+coverage:module-analysis:
+  stage: coverage
+  image: python:3.9
+  tags:
+    - code-quality
+    - static-analysis
+  
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - mkdir -p reports/coverage/modules
+    
+    # Análisis por módulo
+    - |
+      for module in $(find src/ -name "*.py" | grep -v __pycache__ | sed 's|src/||' | sed 's|\.py$||' | tr '/' '.'); do
+        echo "Analyzing module: $module"
+        coverage run --source=src/$module.py -m pytest tests/ -k "$module" || true
+        coverage report --include="src/$module.py" > "reports/coverage/modules/$module.txt" || true
+      done
+    
+    # Generar reporte consolidado de módulos
+    - find reports/coverage/modules/ -name "*.txt" -exec cat {} \; > reports/coverage/modules-summary.txt
+    
+  artifacts:
+    when: always
+    paths:
+      - reports/coverage/modules/
+    expire_in: 1 week
+  allow_failure: true

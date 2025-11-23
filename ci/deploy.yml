@@ -1,0 +1,391 @@
+
+# Deploy stage - deploy containers to VMs and verify execution
+# Deploy MySQL
+deploy:deploy_mysql_vm1:
+  stage: deploy
+  script:
+    - echo 'Deploying MySQL to VM1...'
+
+    # Create shared network if it doesn't exist
+    - docker network create keypool-network 2>/dev/null || echo 'Network already exists'
+    
+    # Clean up
+    - docker rm -f keypool_mysql 2>/dev/null || echo 'No container'
+    - docker volume create mysql_data 2>/dev/null || echo 'Volume exists'
+    
+    # Start MySQL 5.7 (compatible with older CPUs)
+    - echo 'Starting MySQL 5.7 on port 3307...'
+    - |
+      docker run -d \
+        --name keypool_mysql \
+        --network keypool-network \
+        --restart unless-stopped \
+        -e MYSQL_ROOT_PASSWORD=root_password_change_me \
+        -e MYSQL_DATABASE=keypool_logs \
+        -e MYSQL_USER=keypool_user \
+        -e MYSQL_PASSWORD=keypool_password \
+        -p 3307:3306 \
+        -v mysql_data:/var/lib/mysql \
+        -v $(pwd)/local/mysql/init:/docker-entrypoint-initdb.d:ro \
+        mysql:5.7
+    
+    - echo 'Waiting for MySQL to initialize (40 seconds)...'
+    - sleep 40
+    
+    - docker ps | grep keypool_mysql
+    - docker logs --tail 30 keypool_mysql
+    
+    - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password -e "SHOW DATABASES;"
+    - docker exec keypool_mysql mysql -u keypool_user -pkeypool_password keypool_logs -e "SHOW TABLES;"
+    
+    - echo '✓ MySQL 5.7 deployed on port 3307'
+  
+  only:
+    - main
+    - dev
+    - merge_requests
+
+deploy:deploy_to_vm2:
+  stage: deploy
+  script:
+    - echo 'Deploying both containers to VM2 using Docker Compose...'
+    
+    # Save both images to tar files
+    - echo 'Preparing ogs_data_generator image for transfer...'
+    - docker save ogs_data_generator:latest -o ogs_data_generator.tar
+    - ls -lh ogs_data_generator.tar
+    
+    - echo 'Preparing log_collector image for transfer...'
+    - docker save log_collector:latest -o log_collector.tar
+    - ls -lh log_collector.tar
+    
+    # Transfer images and docker-compose.prod.yml to VM2
+    - echo 'Transferring images and docker-compose.prod.yml to VM2...'
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no ogs_data_generator.tar starion@192.168.0.11:/tmp/
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no log_collector.tar starion@192.168.0.11:/tmp/
+    - scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no remote/docker-compose.yml starion@192.168.0.11:/tmp/docker-compose.yml
+    
+    # Load images and deploy with docker compose on VM2
+    - echo 'Loading images and deploying with Docker Compose on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        cd /tmp;
+        
+        echo "=== CLEANUP Stopping old standalone containers ===";
+        docker stop log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old standalone containers running";
+        docker rm log_collector_container ogs_data_generator_container 2>/dev/null || echo "No old standalone containers to remove";
+        
+        echo "=== CLEANUP Stopping existing compose deployment ===";
+        docker compose down -v 2>/dev/null || echo "No existing compose deployment";
+        
+        echo "=== Loading Docker images ===";
+        docker load -i ogs_data_generator.tar;
+        docker load -i log_collector.tar;
+        
+        echo "=== Verifying loaded images ===";
+        docker images | grep -E "ogs_data_generator|log_collector";
+        
+        echo "=== Verifying docker-compose.yml ===";
+        head -10 docker-compose.yml;
+        
+        echo "=== Starting services with Docker Compose ===";
+        docker compose up -d;
+        
+        echo "=== Waiting for containers to stabilize ===";
+        sleep 15;
+        
+        echo "=== Verifying deployment status ===";
+        docker compose ps;
+        
+        echo "=== Checking all containers ===";
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}";
+        
+        echo "=== Checking container logs ===";
+        echo "--- OGS Data Generator logs ---";
+        docker compose logs ogs-data-generator --tail=20;
+        echo "";
+        echo "--- Log Collector logs ---";
+        docker compose logs log-collector --tail=20;
+        
+        echo "=== Testing connectivity ===";
+        echo "Testing OGS health endpoint...";
+        curl -f http://localhost:5000/health || echo "OGS health check failed";
+        
+        echo "=== Cleaning up transfer files ===";
+        rm -f ogs_data_generator.tar log_collector.tar;
+        
+        echo "=== Final deployment summary ===";
+        docker ps;
+      '
+    
+    # Clean up local transfer files
+    - rm -f ogs_data_generator.tar log_collector.tar
+    - echo '✓ Deployment completed - check logs above for status'
+    
+  dependencies:
+    - build:build_log_collector
+    - build:build_ogs_data_generator
+  only:
+    - main
+    - dev
+    - merge_requests
+
+deploy:log_processor_vm1:
+  stage: deploy
+  script:
+    - echo 'Deploying log_processor to VM1 (local)...'
+    # Stop any existing container
+    - echo 'Stopping existing log_processor container...'
+    - sudo docker stop log_processor_container 2>/dev/null || docker stop log_processor_container 2>/dev/null || echo 'No existing container to stop'
+    - sudo docker rm log_processor_container 2>/dev/null || docker rm log_processor_container 2>/dev/null || echo 'No existing container to remove'
+    
+    # Run the new container
+    - echo 'Starting log_processor container on VM1...'
+    # Obtaing  MySQL's IP first
+    - sleep 25
+    - MYSQL_IP=$(docker inspect keypool_mysql --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+    - sleep 5
+    - >
+      docker run -d
+      --name log_processor_container
+      --restart unless-stopped
+      --network host
+      --add-host keypool_mysql:${MYSQL_IP}
+      -e DB_HOST=keypool_mysql
+      -e DB_PORT=3306
+      -e DB_NAME=keypool_logs
+      -e DB_USER=keypool_user
+      -e DB_PASSWORD=keypool_password
+      -e ENABLE_KEYPOOL=false
+      -e ENABLE_OGS=true
+      -e OGS_COLLECTOR_URL=http://192.168.0.11:8080
+      -e OGS_PROCESS_INTERVAL=15
+      log_processor:latest
+    
+    - sleep 5
+    - docker ps | grep log_processor_container
+    - docker logs --tail 20 log_processor_container
+    - echo '✓ log_processor deployed'
+
+    # Verify container is running
+    - echo 'Verifying log_processor container status...'
+    - sleep 5
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
+    
+    # Show recent logs
+    - echo "Recent logs:"
+    - sudo docker logs --tail 20 log_processor_container || docker logs --tail 20 log_processor_container
+
+    - echo '✓ log_processor deployed and running on VM1'
+    
+    
+  dependencies:
+    - build:build_log_processor
+    - deploy:deploy_mysql_vm1
+  only:
+    - main
+    - dev
+    - merge_requests
+
+# Deploy Grafana
+deploy:grafana_vm1:
+  stage: deploy
+  script:
+    - echo 'Deploying Grafana to VM1...'
+    
+    # Create shared network if it doesn't exist
+    - docker network create keypool-network 2>/dev/null || echo 'Network already exists'
+
+    # Stop any existing Grafana container
+    - echo 'Stopping existing Grafana container...'
+    - sudo docker stop grafana 2>/dev/null || docker stop grafana 2>/dev/null || echo 'No existing Grafana to stop'
+    - sudo docker rm grafana 2>/dev/null || docker rm grafana 2>/dev/null || echo 'No existing Grafana to remove'
+    
+    # Ensure Grafana directories exist
+    - echo 'Creating Grafana directories...'
+    - mkdir -p local/grafana/config/datasources
+    - mkdir -p local/grafana/dashboards
+    
+    # Create MySQL datasource configuration dynamically
+    - echo 'Creating MySQL datasource configuration...'
+    - |
+      # Detect IP host Docker
+      DOCKER_HOST_IP=$(ip -4 addr show docker0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "172.17.0.1")
+      echo "Using Docker host IP: $DOCKER_HOST_IP"
+
+      cat > local/grafana/config/datasources/mysql.yml << EOF
+      apiVersion: 1
+      datasources:
+        - name: MySQL-KeyPool
+          type: mysql
+          access: proxy
+          url: keypool_mysql:3306  
+          user: ${MYSQL_USER}
+          database: ${MYSQL_DATABASE}
+          basicAuth: false
+          isDefault: true
+          jsonData:
+            maxOpenConns: 0
+            maxIdleConns: 2
+            connMaxLifetime: 14400
+            timezone: "browser"
+          secureJsonData:
+            password: ${MYSQL_PASSWORD}
+          editable: true
+      EOF
+    
+    # Create dashboard provider configuration
+    - echo 'Creating dashboard provider configuration...'
+    - |
+      cat > local/grafana/dashboards/dashboard.yml << EOF
+      apiVersion: 1
+      providers:
+        - name: 'KeyPool Logs Dashboard'
+          orgId: 1
+          folder: ''
+          folderUid: ''
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 10
+          allowUiUpdates: true
+          options:
+            path: /etc/grafana/provisioning/dashboards
+      EOF
+    
+    # Start Grafana container
+    - echo 'Starting Grafana container...'
+    - |
+      sudo docker run -d \
+        --name grafana \
+        --network keypool-network \
+        --restart unless-stopped \
+        -p ${GRAFANA_PORT}:3000 \
+        -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
+        -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
+        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
+        -e GF_SERVER_ROOT_URL=http://0.0.0.0:${GRAFANA_PORT} \
+        -e GF_SECURITY_ALLOW_EMBEDDING=true \
+        -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
+        -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
+        -v grafana-storage:/var/lib/grafana \
+        --add-host=host.docker.internal:host-gateway \
+        grafana/grafana:latest || \
+      docker run -d \
+        --name grafana \
+        --network keypool-network \
+        --restart unless-stopped \
+        -p ${GRAFANA_PORT}:3000 \
+        -e GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER} \
+        -e GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD} \
+        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
+        -e GF_SERVER_ROOT_URL=http://0.0.0.0:${GRAFANA_PORT} \
+        -e GF_SECURITY_ALLOW_EMBEDDING=true \
+        -v $(pwd)/local/grafana/config/datasources:/etc/grafana/provisioning/datasources:ro \
+        -v $(pwd)/local/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro \
+        -v grafana-storage:/var/lib/grafana \
+        --add-host=host.docker.internal:host-gateway \
+        grafana/grafana:latest
+    
+    # Wait for Grafana to be ready
+    - echo 'Waiting for Grafana to initialize...'
+    - sleep 15
+    
+    # Verify Grafana is running
+    - echo 'Verifying Grafana status...'
+    - sudo docker ps | grep grafana || docker ps | grep grafana
+    
+    # Check Grafana health
+    - echo 'Checking Grafana health...'
+    - curl -f http://0.0.0.0:${GRAFANA_PORT}/api/health || echo 'Grafana health check failed (might need more time)'
+    
+    # Show Grafana logs
+    - echo 'Recent Grafana logs:'
+    - sudo docker logs --tail 20 grafana || docker logs --tail 20 grafana
+    
+    # Test MySQL connection from Grafana container
+    - echo 'Testing MySQL connectivity from Grafana...'
+    - |
+      sudo docker exec grafana sh -c "nc -zv host.docker.internal ${MYSQL_PORT}" || \
+      docker exec grafana sh -c "nc -zv host.docker.internal ${MYSQL_PORT}" || \
+      echo 'MySQL connectivity test failed'
+    
+    - echo ' Grafana deployed successfully!'
+    - echo " Access Grafana at:\ http://0.0.0.0:${GRAFANA_PORT}"
+    - echo " Username:\ ${GRAFANA_ADMIN_USER}"
+    - echo " Password:\ ${GRAFANA_ADMIN_PASSWORD}"
+    
+  dependencies:
+    - build:build_grafana
+    - deploy:deploy_mysql_vm1
+  only:
+    - main
+    - dev
+    - merge_requests
+
+
+# Verify deployment - check both containers are running
+deploy:verify_deployment:
+  stage: deploy
+  script:
+    - echo 'Verifying all containers are running...'
+    
+    # Check VM1 containers
+    - echo '=== Checking VM1 containers ==='
+    - echo 'Checking log_processor on VM1...'
+    - sudo docker ps | grep log_processor_container || docker ps | grep log_processor_container
+    - sudo docker logs --tail 10 log_processor_container || docker logs --tail 10 log_processor_container
+    
+    - echo 'Checking MySQL on VM1...'
+    - sudo docker ps | grep keypool_mysql || docker ps | grep keypool_mysql  
+    - sudo docker logs --tail 10 keypool_mysql || docker logs --tail 10 keypool_mysql
+    
+    - echo 'Checking Grafana on VM1...'
+    - sudo docker ps | grep grafana || docker ps | grep grafana
+    - sudo docker logs --tail 10 grafana || docker logs --tail 10 grafana
+    
+    # Check VM2 container
+    - echo '=== Checking VM2 container ==='
+    - echo 'Checking log_collector on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Container status on VM2:";
+        docker ps | grep log_collector;
+        echo "Recent logs from VM2:";
+        docker logs --tail 10 log_collector;
+      '
+    - echo 'Checking ogs_data_generator on VM2...'
+    - ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no starion@192.168.0.11 '
+        echo "Container status on VM2:";
+        docker ps | grep ogs_data_generator;
+        echo "Recent logs from VM2:";
+        docker logs --tail 10 ogs_data_generator;
+      '
+    
+    # Verify data flow
+    - echo '=== Verifying data flow ==='
+    - echo 'Checking if data is being stored in MySQL...'
+    - |
+      docker exec keypool_mysql mysql \
+        -u ${MYSQL_USER} \
+        -p${MYSQL_PASSWORD} \
+        ${MYSQL_DATABASE} \
+        -e "SELECT COUNT(*) as total_logs FROM logs_data;" || echo 'No logs_data table yet'
+    
+    # Test Grafana API
+    - echo '=== Testing Grafana API ==='
+    - curl -s -u ${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD} http://0.0.0.0:${GRAFANA_PORT}/api/datasources | python3 -m json.tool || echo 'Grafana API test failed'
+    
+    - echo 'Deployment verification complete'
+    - echo 'System Overview:'
+    - echo '  - Log Collector (VM2):\ Generating logs on port 8080'
+    - echo '  - Log Processor (VM1):\ Processing logs and storing in MySQL'
+    - echo '  - MySQL (VM1):\ Storing processed logs on port ${MYSQL_PORT}'
+    - echo '  - Grafana (VM1):\ Visualizing data on port ${GRAFANA_PORT}'
+    
+  dependencies:
+    - deploy:deploy_to_vm2
+    - deploy:log_processor_vm1
+    - deploy:deploy_mysql_vm1
+    - deploy:grafana_vm1
+  only:
+    - main
+    - dev
+    - merge_requests

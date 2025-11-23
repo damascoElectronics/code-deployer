@@ -1,0 +1,27 @@
+# .gitlab-ci.yml - Complete CI/CD pipeline with security analysis
+
+# external files.
+include:
+  - local: '/ci/variables.yml'
+  - local: '/ci/code-quality.yml'
+  - local: '/ci/test.yml'
+  - local: '/ci/coverage.yml'
+  - local: '/ci/security.yml'
+  - local: '/ci/quality-gate.yml'
+  - local: '/ci/build.yml'
+  - local: '/ci/report.yml'
+  - local: '/ci/network.yml'
+  - local: '/ci/deploy.yml'
+  - local: '/ci/stop.yml'
+
+# stages
+stages:
+  - lint
+  - test
+  - coverage
+  - security
+  - quality-gate
+  - network
+  - build
+  - deploy
+  - stop  

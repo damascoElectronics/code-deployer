@@ -1,0 +1,33 @@
+# Global variables 
+variables:
+  PYTHON_VERSION: '3.9'
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  FF_SCRIPT_SECTIONS: "true"
+  # test criterial values
+  COVERAGE_THRESHOLD: "80"    # <-- score minimum tu pass is 8.0 for coverage test 
+  PYLINT_THRESHOLD: "8.0"     # <-- score minimum tu pass is 8.0 for code Quality style
+  SEMGREP_MAX_CRITICAL: "0" 
+  SEMGREP_MAX_HIGH: "5"
+  SEMGREP_MAX_MEDIUM: "10"
+    # MySQL Configuration (centralized)
+  MYSQL_ROOT_PASSWORD: 'root_password_change_me'
+  MYSQL_DATABASE: 'keypool_logs'
+  MYSQL_USER: 'keypool_user'
+  MYSQL_PASSWORD: 'keypool_password'
+  MYSQL_PORT: '3307'
+  # Grafana Configuration
+  GRAFANA_ADMIN_USER: 'admin'
+  GRAFANA_ADMIN_PASSWORD: 'admin123'
+  GRAFANA_PORT: '3003'
+  # Terminal Colors
+  NC: '\033[0m'               # No Color
+  RED: '\033[0;31m'           # Red
+  GREEN: '\033[0;32m'         # Green
+  BLUE: '\033[0;34m'          # Blue
+  # Terminal bold High Intensity
+  BIGreen: '\033[1;92m'       # Green
+  BRed: '\033[1;31m'          # Red
+  BBlue: '\033[1;34m'         # blue
+  # network settings
+  IP_POST: 192.168.0.11       
+  VPN_USER: starion
