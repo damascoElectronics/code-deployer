@@ -8,7 +8,7 @@ and tracking which files have been processed.
 import os
 import logging
 import requests
-import config
+from . import config
 
 logger = logging.getLogger('log_processor.downloader')
 

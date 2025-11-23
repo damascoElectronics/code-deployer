@@ -45,15 +45,3 @@ class Config:
             f"  OGS: {'Enabled' if self.ENABLE_OGS else 'Disabled'}\n"
             f")"
         )
-
-# Module-level shortcuts for backward compatibility
-MYSQL_HOST = Config.DB_HOST
-MYSQL_PORT = Config.DB_PORT
-MYSQL_USER = Config.DB_USER
-MYSQL_PASSWORD = Config.DB_PASSWORD
-MYSQL_DATABASE = Config.DB_NAME
-VM2_API_URL = Config.OGS_COLLECTOR_URL
-DOWNLOAD_DIR = Config.OGS_DOWNLOAD_DIR
-PROCESSED_FILES_LOG = Config.OGS_DOWNLOAD_DIR + "/.processed_files.txt"
-POLL_INTERVAL = Config.OGS_PROCESS_INTERVAL
-LOG_LEVEL = Config.LOG_LEVEL

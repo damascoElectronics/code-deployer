@@ -6,10 +6,10 @@ for storing and retrieving log data.
 """
 
 import logging
-from datetime import datetime
+from . import config
 import mysql.connector
+from datetime import datetime
 from mysql.connector import Error
-import config
 
 logger = logging.getLogger('log_processor.database')
 

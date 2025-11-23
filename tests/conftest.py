@@ -1,43 +1,94 @@
-"""Global pytest configuration - Mock config module."""
+"""Global pytest configuration and fixtures.
 
+This module contains shared fixtures and configuration for all tests
+in the project.
+"""
+
+import os
 import sys
+import tempfile
 import pytest
-from unittest.mock import MagicMock
+from typing import Generator
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mock_config_module():
-    """Mock config module for all tests."""
-    config_mock = MagicMock()
-    
-    # MySQL config
-    config_mock.MYSQL_HOST = '127.0.0.1'
-    config_mock.MYSQL_PORT = 3306
-    config_mock.MYSQL_USER = 'test_user'
-    config_mock.MYSQL_PASSWORD = 'test_pass'
-    config_mock.MYSQL_DATABASE = 'test_db'
-    
-    # Log processor config
-    config_mock.VM2_HOST = '192.168.0.11'
-    config_mock.VM2_PORT = 8080
-    config_mock.VM2_API_URL = 'http://192.168.0.11:8080'
-    config_mock.POLL_INTERVAL = 30
-    config_mock.DOWNLOAD_DIR = '/tmp/test_downloads'
-    config_mock.PROCESSED_FILES_LOG = '/tmp/.processed_files.txt'
-    config_mock.LOG_LEVEL = 'INFO'
-    
-    # OGS config
-    config_mock.OGS_PROVIDER_URL = 'http://ogs-data-generator:5000'
-    config_mock.FETCH_INTERVAL = 10
-    config_mock.FETCH_TIMEOUT = 5
-    config_mock.DATA_DIR = '/tmp/test_data'
-    config_mock.HTTP_SERVER_PORT = 8080
-    
-    # Inject into sys.modules
-    sys.modules['config'] = config_mock
-    
-    yield config_mock
+# Register custom markers to avoid warnings
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line("markers", "unit: Unit tests")
+    config.addinivalue_line("markers", "integration: Integration tests")
+    config.addinivalue_line("markers", "slow: Slow running tests")
+    config.addinivalue_line("markers", "skip_coverage: Skip coverage for this test")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to add markers automatically."""
+    for item in items:
+        # Add unit marker to tests in unit directory
+        if "unit" in str(item.fspath):
+            item.add_marker(pytest.mark.unit)
+        
+        # Add integration marker to tests in integration directory
+        if "integration" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
+        
+        # Add slow marker to tests that take longer
+        if "performance" in item.name or "large_file" in item.name:
+            item.add_marker(pytest.mark.slow)
+
+
+@pytest.fixture(scope="session")
+def test_data_dir() -> str:
+    """Fixture that provides the path to test data directory."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_dir, "data")
+
+
+@pytest.fixture
+def temp_directory() -> Generator[str, None, None]:
+    """Fixture that provides a temporary directory for tests."""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
     
     # Cleanup
-    if 'config' in sys.modules:
-        del sys.modules['config']
+    import shutil
+    shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def sample_text_file(temp_directory: str) -> str:
+    """Fixture that creates a sample text file for testing."""
+    file_path = os.path.join(temp_directory, "sample.txt")
+    
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write("Sample line 1\n")
+        f.write("Sample line 2\n")
+        f.write("\n")  # Empty line
+        f.write("Sample line 4\n")
+        f.write("Sample line 5\n")
+    
+    return file_path
+
+
+@pytest.fixture
+def sample_log_content() -> str:
+    """Fixture that provides sample KeyPool log content."""
+    return """2024-01-15T10:30:45.123+0000 SiteId: 101  INFO 26 [quartzScheduler_Worker-3] c.e.q.k.k.KeyPoolServiceImpl             : createKey: KeyPoolService successfully created key with identity = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', sequence number 477001, and KeyPool {Source site identity = '102', Destination site identity = '101', and KeyPoolType name = 'PUBLIC'}
+2024-01-15T10:30:46.456+0000 SiteId: 101  INFO 26 [quartzScheduler_Worker-5] c.e.q.k.k.KeySyncServiceImpl             : METRIC_KEY_SYNC_LATENCY MS=85
+2024-01-15T10:30:47.789+0000 SiteId: 101  INFO 26 [quartzScheduler_Worker-7] c.e.q.k.k.KeySyncServiceImpl             : METRIC_RECEIVED_PUBLIC_KEY_COUNT BITS=2560 KEYS=10
+"""
+
+
+@pytest.fixture
+def mock_db_manager():
+    """Fixture that provides a mock database manager."""
+    from unittest.mock import MagicMock
+    
+    mock_db = MagicMock()
+    mock_db.is_connected.return_value = True
+    mock_db.insert_key_creation.return_value = True
+    mock_db.insert_sync_latency.return_value = True
+    mock_db.insert_key_count.return_value = True
+    mock_db.insert_controller_sync.return_value = True
+    mock_db.mark_file_processed.return_value = True
+    
+    return mock_db
