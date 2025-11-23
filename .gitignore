@@ -10,4 +10,7 @@ artifacts/*
 .env
 venv
 
+# test
+.coverage
+
 __pycache__
